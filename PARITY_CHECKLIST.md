@@ -720,7 +720,7 @@ Missing major utility categories:
 - [ ] Session management (`utils/sessionStorage.ts`, `utils/sessionState.ts`, `utils/sessionStart.ts`, `utils/sessionRestore.ts`)
 - [ ] Plugin/Skill utilities (`utils/plugins/`, `utils/skills/`)
 - [ ] Memory/Context (`utils/memory/`, `utils/claudemd.ts`, `utils/contextAnalysis.ts`)
-- [ ] IDE integration (`utils/ide.ts`, `utils/jetbrains.ts`)
+- [ ] IDE integration (`utils/ide.ts`, `utils/jetbrains.ts`) — partial: `utils/idePathConversion.ts` ported in `src/ide_path_conversion.py` (`WindowsToWSLConverter`, `checkWSLDistroMatch`)
 - [ ] Platform/OS (`utils/platform.ts`, `utils/terminal.ts`, `utils/systemDirectories.ts`) — partial: platform detection (`getPlatform`, `getWslVersion`, `getLinuxDistroInfo`, `detectVcs`) and `getSystemDirectories` ported in `src/platform_info.py`
 - [ ] Debugging (`utils/debug.ts`, `utils/diagLogs.ts`, `utils/log.ts`, `utils/profilerBase.ts`)
 - [ ] Telemetry (`utils/telemetry/`)
