@@ -9,6 +9,7 @@ from pathlib import Path
 from src.agent_tools import (
     ToolExecutionError,
     ToolPermissionError,
+    _build_subprocess_env,
     _ensure_shell_allowed,
     _is_sensitive_env_var,
     _resolve_path,
@@ -16,6 +17,10 @@ from src.agent_tools import (
     default_tool_registry,
 )
 from src.agent_types import AgentPermissions, AgentRuntimeConfig
+from src.session_env_vars import (
+    clear_session_env_vars,
+    set_session_env_var,
+)
 
 
 def _make_context(
@@ -228,6 +233,36 @@ class TestIsSensitiveEnvVar(unittest.TestCase):
         self.assertTrue(_is_sensitive_env_var("my_secret"))
         self.assertTrue(_is_sensitive_env_var("Github_Token"))
         self.assertTrue(_is_sensitive_env_var("db_password"))
+
+
+# ---------------------------------------------------------------------------
+# _build_subprocess_env – session env var merging
+# ---------------------------------------------------------------------------
+class TestBuildSubprocessEnv(unittest.TestCase):
+    def setUp(self):
+        clear_session_env_vars()
+
+    def tearDown(self):
+        clear_session_env_vars()
+
+    def test_session_env_var_appears_in_subprocess_env(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ctx = _make_context(tmp)
+            set_session_env_var("CLAW_SESSION_FOO", "from-session")
+            env = _build_subprocess_env(ctx)
+            self.assertEqual(env["CLAW_SESSION_FOO"], "from-session")
+
+    def test_extra_env_overrides_session_env(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = AgentRuntimeConfig(cwd=Path(tmp))
+            ctx = build_tool_context(
+                config,
+                tool_registry=default_tool_registry(),
+                extra_env={"CLAW_OVERRIDE_ME": "from-extra"},
+            )
+            set_session_env_var("CLAW_OVERRIDE_ME", "from-session")
+            env = _build_subprocess_env(ctx)
+            self.assertEqual(env["CLAW_OVERRIDE_ME"], "from-extra")
 
 
 if __name__ == "__main__":
