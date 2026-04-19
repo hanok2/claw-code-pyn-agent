@@ -708,6 +708,7 @@ Done:
 - [x] Basic shell/subprocess handling
 - [x] Bundled small portable utilities — `utils/array.ts`, `utils/set.ts`, `utils/objectGroupBy.ts`, `utils/xml.ts`, `utils/uuid.ts` ported in `src/small_utils.py`
 - [x] Session-scoped env-var registry (`utils/sessionEnvVars.ts`) ported in `src/session_env_vars.py`
+- [x] Display formatters from `utils/format.ts` (`formatFileSize`, `formatSecondsShort`, `formatDuration`, `formatNumber`, `formatTokens`) ported in `src/format_utils.py`
 
 Missing major utility categories:
 
