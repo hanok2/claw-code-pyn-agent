@@ -621,6 +621,9 @@ python3 -m src.main agent "/model demo-model" --cwd ./test_cases
 python3 -m src.main agent "/tools" --cwd ./test_cases
 python3 -m src.main agent "/agents" --cwd ./test_cases_agents
 python3 -m src.main agent "/agents show reviewer" --cwd ./test_cases_agents
+python3 -m src.main agent "/agents create reviewer-temp :: Review temporary code changes. :: Inspect code and summarize risks." --cwd ./test_cases_agents
+python3 -m src.main agent "/agents update reviewer-temp Updated temp reviewer :: Focus on regressions and missing tests." --cwd ./test_cases_agents
+python3 -m src.main agent "/agents delete reviewer-temp" --cwd ./test_cases_agents
 python3 -m src.main agent "/memory" --cwd ./test_cases
 python3 -m src.main agent "/status" --cwd ./test_cases
 python3 -m src.main agent "/session" --cwd ./test_cases
@@ -700,6 +703,9 @@ python3 -m src.main agent-context-raw --cwd ./test_cases
 python3 -m src.main token-budget --cwd ./test_cases
 python3 -m src.main agents --cwd ./test_cases_agents
 python3 -m src.main agents reviewer --cwd ./test_cases_agents
+python3 -m src.main agents-create reviewer-cli --cwd ./test_cases_agents --description "CLI-created reviewer agent." --prompt "Inspect code changes and summarize risks."
+python3 -m src.main agents-update reviewer-cli --cwd ./test_cases_agents --description "Updated CLI reviewer." --prompt "Focus on regressions and missing tests."
+python3 -m src.main agents-delete reviewer-cli --cwd ./test_cases_agents --source project
 ```
 
 ### 6.2 Extra working directories and `CLAUDE.md` toggle

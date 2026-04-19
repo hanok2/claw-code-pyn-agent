@@ -149,6 +149,33 @@ class AgentSlashCommandTests(unittest.TestCase):
         self.assertIn('# Agent: reviewer', detail_result.final_output)
         self.assertIn('Inspect code changes and summarize risks.', detail_result.final_output)
 
+    def test_agents_command_can_create_update_and_delete_project_agent(self) -> None:
+        with tempfile.TemporaryDirectory() as home_dir, tempfile.TemporaryDirectory() as tmp_dir:
+            workspace = Path(tmp_dir)
+            with patch.dict(os.environ, {'HOME': home_dir}):
+                agent = LocalCodingAgent(
+                    model_config=ModelConfig(model='test-model'),
+                    runtime_config=AgentRuntimeConfig(cwd=workspace),
+                )
+                create_result = agent.run(
+                    '/agents create reviewer :: Review code changes carefully. :: Inspect code changes and summarize risks.'
+                )
+                self.assertIn('action=created', create_result.final_output)
+                self.assertTrue((workspace / '.claude' / 'agents' / 'reviewer.md').exists())
+
+                update_result = agent.run(
+                    '/agents update reviewer Updated review description :: Focus on regressions and missing tests.'
+                )
+                self.assertIn('action=updated', update_result.final_output)
+
+                detail_result = agent.run('/agents reviewer')
+                self.assertIn('Updated review description', detail_result.final_output)
+                self.assertIn('Focus on regressions and missing tests.', detail_result.final_output)
+
+                delete_result = agent.run('/agents delete reviewer')
+                self.assertIn('action=deleted', delete_result.final_output)
+                self.assertFalse((workspace / '.claude' / 'agents' / 'reviewer.md').exists())
+
     def test_mcp_and_resource_commands_render_local_reports(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             workspace = Path(tmp_dir)

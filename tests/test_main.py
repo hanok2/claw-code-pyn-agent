@@ -7,7 +7,7 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from src.main import _build_runtime_config, _build_agent, _run_agent_chat_loop, build_parser
+from src.main import _build_runtime_config, _build_agent, _run_agent_chat_loop, build_parser, main
 
 
 class FakeHTTPResponse:
@@ -220,6 +220,55 @@ class MainCliTests(unittest.TestCase):
         self.assertEqual(args.agent_type, 'reviewer')
         self.assertTrue(args.all)
         self.assertEqual(args.cwd, '.')
+
+    def test_parser_accepts_agent_management_commands(self) -> None:
+        parser = build_parser()
+        create_args = parser.parse_args(
+            ['agents-create', 'reviewer', '--cwd', '.', '--description', 'Review code', '--prompt', 'Inspect diffs']
+        )
+        self.assertEqual(create_args.command, 'agents-create')
+        self.assertEqual(create_args.agent_type, 'reviewer')
+        self.assertEqual(create_args.description, 'Review code')
+
+        update_args = parser.parse_args(['agents-update', 'reviewer', '--cwd', '.', '--source', 'auto'])
+        self.assertEqual(update_args.command, 'agents-update')
+        self.assertEqual(update_args.source, 'auto')
+
+        delete_args = parser.parse_args(['agents-delete', 'reviewer', '--cwd', '.', '--source', 'project'])
+        self.assertEqual(delete_args.command, 'agents-delete')
+        self.assertEqual(delete_args.source, 'project')
+
+    def test_main_can_create_and_delete_agent_definition(self) -> None:
+        with tempfile.TemporaryDirectory() as home_dir, tempfile.TemporaryDirectory() as tmp_dir:
+            workspace = Path(tmp_dir)
+            with patch.dict('os.environ', {'HOME': home_dir}):
+                exit_code = main(
+                    [
+                        'agents-create',
+                        'reviewer',
+                        '--cwd',
+                        str(workspace),
+                        '--description',
+                        'Review code carefully',
+                        '--prompt',
+                        'Inspect code and summarize risks.',
+                    ]
+                )
+                self.assertEqual(exit_code, 0)
+                self.assertTrue((workspace / '.claude' / 'agents' / 'reviewer.md').exists())
+
+                exit_code = main(
+                    [
+                        'agents-delete',
+                        'reviewer',
+                        '--cwd',
+                        str(workspace),
+                        '--source',
+                        'project',
+                    ]
+                )
+                self.assertEqual(exit_code, 0)
+                self.assertFalse((workspace / '.claude' / 'agents' / 'reviewer.md').exists())
 
     def test_parser_accepts_team_runtime_commands(self) -> None:
         parser = build_parser()

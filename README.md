@@ -152,6 +152,7 @@ Built on the public porting workspace from [instructkr/claw-code](https://github
 - [x] Nested agent delegation with dependency-aware topological batching
 - [x] Agent manager with lineage tracking and group membership
 - [x] Filesystem-backed custom agent profiles with built-in/user/project precedence
+- [x] Local custom-agent create/update/delete flows via CLI and `/agents`
 - [x] Local daemon-style background command family
 - [x] Local background session workflows: `agent-bg`, `agent-ps`, `agent-logs`, `agent-attach`, `agent-kill`
 - [x] Local remote runtime: manifest discovery, profile listing, connect/disconnect persistence, and CLI/slash flows
@@ -451,6 +452,9 @@ python3 -m src.main agent \
 | `agent-context-raw` | Show the raw context snapshot |
 | `token-budget` | Show prompt-window budget, reserves, and soft/hard input limits |
 | `agents [agent_type]` | List active local agent definitions or show one agent profile |
+| `agents-create <agent_type>` | Create a project or user agent definition markdown file |
+| `agents-update <agent_type>` | Update an existing project or user agent definition |
+| `agents-delete <agent_type>` | Delete an existing project or user agent definition |
 | `agent-resume <id> <prompt>` | Resume a saved session |
 
 ### Runtime Utility Commands
@@ -550,7 +554,7 @@ These are handled **locally** before the model loop:
 | `/permissions` | — | Show active tool permission mode |
 | `/model` | — | Show or update the active model |
 | `/tools` | — | List registered tools with permission status |
-| `/agents` | — | List active local agent definitions or show one profile |
+| `/agents` | — | List, show, create, update, or delete local agent definitions |
 | `/memory` | — | Show loaded CLAUDE.md memory bundle |
 | `/status` | `/session` | Show runtime/session status summary |
 | `/clear` | — | Clear ephemeral runtime state |
@@ -594,6 +598,32 @@ python3 -m src.main agents --cwd .
 python3 -m src.main agents reviewer --cwd .
 python3 -m src.main agent "/agents" --cwd .
 python3 -m src.main agent "/agents show reviewer" --cwd .
+```
+
+Create, update, or delete agent files from the CLI:
+
+```bash
+python3 -m src.main agents-create reviewer \
+  --cwd . \
+  --description "Review implementation changes carefully." \
+  --prompt "Inspect code changes and summarize risks." \
+  --tools read_file,grep_search \
+  --model Qwen/Qwen3-Coder-30B-A3B-Instruct
+
+python3 -m src.main agents-update reviewer \
+  --cwd . \
+  --description "Review implementation changes and tests carefully." \
+  --prompt "Focus on regressions, missing tests, and risky diffs."
+
+python3 -m src.main agents-delete reviewer --cwd . --source project
+```
+
+Or use the local slash command management forms:
+
+```bash
+python3 -m src.main agent "/agents create reviewer :: Review implementation changes carefully. :: Inspect code changes and summarize risks." --cwd .
+python3 -m src.main agent "/agents update reviewer Updated review description :: Focus on regressions and missing tests." --cwd .
+python3 -m src.main agent "/agents delete reviewer" --cwd .
 ```
 
 ### Utility Commands

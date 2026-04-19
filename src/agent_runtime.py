@@ -15,10 +15,15 @@ from .agent_context_usage import collect_context_usage, estimate_tokens, format_
 from .compact import compact_conversation
 from .ask_user_runtime import AskUserRuntime
 from .agent_registry import (
+    delete_agent_definition,
     find_agent_definition,
+    normalize_mutable_source,
     load_agent_registry,
+    render_agent_mutation,
     render_agent_detail,
     render_agents_report,
+    scaffold_agent_definition,
+    update_agent_definition,
 )
 from .config_runtime import ConfigRuntime
 from .hook_policy import HookPolicyRuntime
@@ -62,6 +67,7 @@ from .team_runtime import TeamRuntime
 from .tokenizer_runtime import describe_token_counter
 from .workflow_runtime import WorkflowRuntime
 from .worktree_runtime import WorktreeRuntime
+from .session_env_vars import clear_session_env_vars
 from .session_store import (
     StoredAgentSession,
     load_agent_session,
@@ -244,6 +250,8 @@ class LocalCodingAgent:
         self.resume_source_session_id = None
         if self.plugin_runtime is not None:
             self.plugin_runtime.restore_session_state({})
+        # Mirror commands/clear/caches.ts: drop session-scoped env vars on /clear.
+        clear_session_env_vars()
 
     def build_prompt_context(self, scratchpad_directory: Path | None = None):
         return build_prompt_context(
@@ -3417,6 +3425,59 @@ class LocalCodingAgent:
     def render_agent_detail_report(self, agent_type: str) -> str:
         snapshot = self.load_agent_registry()
         return render_agent_detail(snapshot, agent_type)
+
+    def render_agent_create_report(
+        self,
+        agent_type: str,
+        *,
+        source: str = 'projectSettings',
+        description: str | None = None,
+        system_prompt: str | None = None,
+        overwrite: bool = False,
+    ) -> str:
+        result = scaffold_agent_definition(
+            self.runtime_config.cwd,
+            agent_type=agent_type,
+            source=normalize_mutable_source(source),
+            overwrite=overwrite,
+            description=description,
+            system_prompt=system_prompt,
+        )
+        return render_agent_mutation(result)
+
+    def render_agent_update_report(
+        self,
+        agent_type: str,
+        *,
+        source: str = 'auto',
+        description: str | None = None,
+        system_prompt: str | None = None,
+    ) -> str:
+        update_kwargs: dict[str, object] = {}
+        if description is not None:
+            update_kwargs['description'] = description
+        if system_prompt is not None:
+            update_kwargs['system_prompt'] = system_prompt
+        result = update_agent_definition(
+            self.runtime_config.cwd,
+            agent_type=agent_type,
+            source=normalize_mutable_source(source, allow_auto=True),
+            **update_kwargs,
+        )
+        return render_agent_mutation(result)
+
+    def render_agent_delete_report(
+        self,
+        agent_type: str,
+        *,
+        source: str = 'auto',
+    ) -> str:
+        result = delete_agent_definition(
+            self.runtime_config.cwd,
+            agent_type=agent_type,
+            source=normalize_mutable_source(source, allow_auto=True),
+        )
+        return render_agent_mutation(result)
 
     def render_memory_report(self) -> str:
         prompt_context = self.build_prompt_context()

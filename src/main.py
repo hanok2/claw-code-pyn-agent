@@ -11,6 +11,13 @@ from typing import Callable
 from .background_runtime import BackgroundSessionRuntime, build_background_worker_command
 from .account_runtime import AccountRuntime
 from .ask_user_runtime import AskUserRuntime
+from .agent_registry import (
+    create_agent_definition,
+    delete_agent_definition,
+    normalize_mutable_source,
+    render_agent_mutation,
+    update_agent_definition,
+)
 from .agent_runtime import LocalCodingAgent
 from .agent_types import (
     AgentPermissions,
@@ -161,6 +168,47 @@ def _load_output_schema_config(args: argparse.Namespace) -> OutputSchemaConfig |
         schema=payload,
         strict=bool(getattr(args, 'response_schema_strict', False)),
     )
+
+
+def _add_agent_management_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument('--cwd', default='.')
+    parser.add_argument(
+        '--source',
+        default='project',
+        choices=('project', 'user', 'auto', 'projectSettings', 'userSettings'),
+    )
+    parser.add_argument('--description')
+    parser.add_argument('--prompt')
+    parser.add_argument('--prompt-file')
+    parser.add_argument('--tools')
+    parser.add_argument('--model')
+    parser.add_argument('--color')
+    parser.add_argument('--permission-mode')
+    parser.add_argument('--max-turns', type=int)
+    parser.add_argument('--initial-prompt')
+    parser.add_argument('--background', action='store_true')
+    parser.add_argument('--one-shot', action='store_true')
+    parser.add_argument('--omit-claude-md', action='store_true')
+    parser.add_argument('--overwrite', action='store_true')
+
+
+def _resolve_agent_prompt_text(args: argparse.Namespace) -> str | None:
+    prompt_text = getattr(args, 'prompt', None)
+    prompt_file = getattr(args, 'prompt_file', None)
+    if prompt_text and prompt_file:
+        raise ValueError('Specify only one of --prompt or --prompt-file')
+    if prompt_file:
+        return Path(prompt_file).read_text(encoding='utf-8')
+    return prompt_text
+
+
+def _parse_tools_flag(raw_tools: str | None) -> tuple[str, ...] | None:
+    if raw_tools is None:
+        return None
+    cleaned = raw_tools.strip()
+    if not cleaned or cleaned == '*':
+        return None
+    return tuple(item.strip() for item in cleaned.split(',') if item.strip())
 
 
 def _build_agent(args: argparse.Namespace) -> LocalCodingAgent:
@@ -879,6 +927,23 @@ def build_parser() -> argparse.ArgumentParser:
     agents_parser.add_argument('agent_type', nargs='?')
     agents_parser.add_argument('--all', action='store_true')
     _add_agent_common_args(agents_parser, include_backend=False)
+
+    agents_create_parser = subparsers.add_parser('agents-create', help='create a local agent definition markdown file')
+    agents_create_parser.add_argument('agent_type')
+    _add_agent_management_args(agents_create_parser)
+
+    agents_update_parser = subparsers.add_parser('agents-update', help='update an existing local agent definition markdown file')
+    agents_update_parser.add_argument('agent_type')
+    _add_agent_management_args(agents_update_parser)
+
+    agents_delete_parser = subparsers.add_parser('agents-delete', help='delete an existing local agent definition markdown file')
+    agents_delete_parser.add_argument('agent_type')
+    agents_delete_parser.add_argument('--cwd', default='.')
+    agents_delete_parser.add_argument(
+        '--source',
+        default='auto',
+        choices=('project', 'user', 'auto', 'projectSettings', 'userSettings'),
+    )
     return parser
 
 
@@ -1518,6 +1583,72 @@ def main(argv: list[str] | None = None) -> int:
             print(agent.render_agent_detail_report(args.agent_type))
         else:
             print(agent.render_agents_report(show_all=bool(args.all)))
+        return 0
+    if args.command == 'agents-create':
+        prompt_text = _resolve_agent_prompt_text(args)
+        result = create_agent_definition(
+            Path(args.cwd).resolve(),
+            agent_type=args.agent_type,
+            description=args.description or f'Use this agent when the task calls for {args.agent_type}.',
+            system_prompt=prompt_text
+            or (
+                f'You are the {args.agent_type} agent.\n'
+                'Read the task carefully, use the available tools deliberately, and return a concise result.'
+            ),
+            source=normalize_mutable_source(args.source),
+            overwrite=bool(args.overwrite),
+            tools=_parse_tools_flag(args.tools),
+            model=args.model,
+            color=args.color,
+            permission_mode=args.permission_mode,
+            max_turns=args.max_turns,
+            initial_prompt=args.initial_prompt,
+            background=bool(args.background),
+            one_shot=bool(args.one_shot),
+            omit_claude_md=bool(args.omit_claude_md),
+        )
+        print(render_agent_mutation(result))
+        return 0
+    if args.command == 'agents-update':
+        prompt_text = _resolve_agent_prompt_text(args)
+        update_kwargs: dict[str, object] = {}
+        if args.description is not None:
+            update_kwargs['description'] = args.description
+        if prompt_text is not None:
+            update_kwargs['system_prompt'] = prompt_text
+        if args.tools is not None:
+            update_kwargs['tools'] = _parse_tools_flag(args.tools)
+        if args.model is not None:
+            update_kwargs['model'] = args.model
+        if args.color is not None:
+            update_kwargs['color'] = args.color
+        if args.permission_mode is not None:
+            update_kwargs['permission_mode'] = args.permission_mode
+        if args.max_turns is not None:
+            update_kwargs['max_turns'] = args.max_turns
+        if args.initial_prompt is not None:
+            update_kwargs['initial_prompt'] = args.initial_prompt
+        if args.background:
+            update_kwargs['background'] = True
+        if args.one_shot:
+            update_kwargs['one_shot'] = True
+        if args.omit_claude_md:
+            update_kwargs['omit_claude_md'] = True
+        result = update_agent_definition(
+            Path(args.cwd).resolve(),
+            agent_type=args.agent_type,
+            source=normalize_mutable_source(args.source, allow_auto=True),
+            **update_kwargs,
+        )
+        print(render_agent_mutation(result))
+        return 0
+    if args.command == 'agents-delete':
+        result = delete_agent_definition(
+            Path(args.cwd).resolve(),
+            agent_type=args.agent_type,
+            source=normalize_mutable_source(args.source, allow_auto=True),
+        )
+        print(render_agent_mutation(result))
         return 0
 
     parser.error(f'unknown command: {args.command}')

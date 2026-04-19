@@ -117,6 +117,7 @@ Done:
 - [x] Filesystem-backed custom agent discovery from `~/.claude/agents` and `./.claude/agents`
 - [x] Active agent override precedence across built-in, user, and project agent definitions
 - [x] Custom agent resolution in the `Agent` tool with model, tool-filter, and initial-prompt support
+- [x] Local custom-agent file creation, update, and deletion flows for project/user agent definitions
 
 Missing:
 
@@ -145,6 +146,9 @@ Done:
 - [x] `agent-context-raw` command
 - [x] `token-budget` command
 - [x] `agents` command
+- [x] `agents-create` command
+- [x] `agents-update` command
+- [x] `agents-delete` command
 - [x] Local background session mode
 - [x] Local background session listing (`agent-ps`)
 - [x] Local background session logs (`agent-logs`)
@@ -171,14 +175,14 @@ Missing:
 - [ ] Self-hosted runner mode
 - [ ] tmux fast paths
 - [ ] Worktree fast paths at the CLI entrypoint level
-- [ ] Node.js version check and platform setup from `setup.ts`
+- [x] Python (Node.js equivalent) version check and platform detection from `setup.ts`
 - [ ] Worktree creation/setup from `setup.ts`
 - [ ] Terminal backup/restore from `setup.ts`
-- [ ] Release notes checking from `setup.ts`
+- [x] Release notes checking from `setup.ts` (local CHANGELOG.md, no network/cache layer)
 - [ ] Full `entrypoints/cli.tsx` parity (version flag, feature flags, env setup, dynamic imports)
 - [ ] Full `entrypoints/init.ts` parity (settings validation, OAuth, policy limits, telemetry, cleanup handlers)
-- [ ] SDK entrypoint (`entrypoints/sdk/` — controlTypes, coreTypes, runtimeTypes, settingsTypes, toolTypes)
-- [ ] Sandbox types/network config schema (`entrypoints/sandboxTypes.ts`)
+- [ ] SDK entrypoint (`entrypoints/sdk/` — controlTypes, coreTypes, runtimeTypes, settingsTypes, toolTypes) — partial: HOOK_EVENTS, EXIT_REASONS, ModelUsage, ThinkingConfig, MCP server configs, JsonSchemaOutputFormat ported in `src/sdk_core_types.py`
+- [x] Sandbox types/network config schema (`entrypoints/sandboxTypes.ts`)
 
 ## 3. Prompt Assembly
 
@@ -317,56 +321,56 @@ Done (53 slash command names in 37 specs):
 Missing npm slash commands (from `src/commands/` — 80+ commands total):
 
 - [x] `/add-dir` — Add a new working directory
-- [x] `/agents` — Inspect local agent configurations and show active definitions
+- [x] `/agents` — Inspect, create, update, and delete local agent definitions
 - [x] `/branch` — Create a branch of the current conversation
-- [ ] `/bridge` — Connect for remote-control sessions
-- [ ] `/btw` — Quick side question without interrupting main conversation
-- [ ] `/chrome` — Chrome extension settings
+- [x] `/bridge` — Connect for remote-control sessions (read-only status in this runtime)
+- [x] `/btw` — Quick side question without interrupting main conversation
+- [x] `/chrome` — Chrome extension settings
 - [x] `/color` — Set the prompt bar color for this session
 - [x] `/compact` — Clear history but keep a summary in context
 - [x] `/copy` — Copy Claude's last response to clipboard
 - [x] `/cost` — Show total cost and duration of session
-- [ ] `/desktop` — Continue session in Claude Desktop
+- [x] `/desktop` — Continue session in Claude Desktop
 - [x] `/diff` — View uncommitted changes and per-turn diffs
 - [x] `/doctor` — Diagnose and verify installation and settings
 - [x] `/effort` — Set effort level for model usage
 - [x] `/exit` — Exit the REPL
 - [x] `/export` — Export conversation to file or clipboard
-- [ ] `/extra-usage` — Configure extra usage for rate limits
+- [x] `/extra-usage` — Configure extra usage for rate limits
 - [x] `/fast` — Toggle fast mode
-- [ ] `/feedback` — Submit feedback
+- [x] `/feedback` — Submit feedback (alias `/bug`)
 - [x] `/files` — List all files currently in context
-- [ ] `/ide` — Manage IDE integrations and show status
-- [ ] `/install-github-app` — Set up GitHub Actions
-- [ ] `/install-slack-app` — Install Slack app
-- [ ] `/keybindings` — Open keybindings config file
-- [ ] `/mobile` — QR code for mobile app
-- [ ] `/output-style` — Change output style
-- [ ] `/passes` — Passes management
-- [ ] `/plugin` — Plugin management
+- [x] `/ide` — Manage IDE integrations and show status
+- [x] `/install-github-app` — Set up GitHub Actions
+- [x] `/install-slack-app` — Install Slack app
+- [x] `/keybindings` — Open keybindings config file
+- [x] `/mobile` — Mobile app store links (aliases `/ios`, `/android`)
+- [x] `/output-style` — Deprecation pointer to `/config`
+- [x] `/passes` — Passes management
+- [x] `/plugin` — Plugin management (read-only listing)
 - [x] `/pr-comments`, `/pr_comments` — Get comments from a GitHub PR (prompt-type)
-- [ ] `/privacy-settings` — View/update privacy settings
-- [ ] `/rate-limit-options` — Show options when rate limited
-- [ ] `/release-notes` — View release notes
-- [ ] `/reload-plugins` — Activate pending plugin changes
-- [ ] `/remote-env` — Configure default remote environment
-- [ ] `/remote-setup` — Remote setup configuration
+- [x] `/privacy-settings` — View/update privacy settings
+- [x] `/rate-limit-options` — Show options when rate limited
+- [x] `/release-notes` — View release notes
+- [x] `/reload-plugins` — Activate pending plugin changes
+- [x] `/remote-env` — Configure default remote environment
+- [x] `/remote-setup` — Remote setup configuration (gh auth status + Claude.ai/code link)
 - [x] `/rename` — Rename current conversation
 - [x] `/resume`, `/continue` — Resume a previous conversation
 - [x] `/rewind`, `/checkpoint` — Restore code/conversation to a previous point
-- [ ] `/sandbox-toggle` — Toggle sandbox mode
-- [x] `/skills` — List available skills
+- [x] `/sandbox-toggle` — Toggle sandbox mode (alias `/sandbox`)
+- [x] `/skills` — List available bundled skills (mirrors `commands/skills/SkillsMenu.tsx`; lists `bundled_skills.BUNDLED_SKILLS`, not slash commands)
 - [x] `/stats` — Usage statistics and activity
-- [ ] `/stickers` — Order stickers
+- [x] `/stickers` — Order stickers
 - [x] `/tag` — Toggle a searchable tag on the session
-- [ ] `/theme` — Change the theme
-- [ ] `/upgrade` — Upgrade to Max
+- [x] `/theme` — Change the theme
+- [x] `/upgrade` — Upgrade to Max
 - [x] `/vim` — Toggle Vim/Normal editing modes
-- [ ] `/voice` — Toggle voice mode
+- [x] `/voice` — Toggle voice mode
 - [ ] Feature-gated: `/buddy`, `/fork`, `/peers`, `/proactive`, `/torch`, `/workflows` (full), etc.
 - [ ] Internal: `/backfill-sessions`, `/break-cache`, `/bughunter`, `/commit-push-pr`, `/init-verifiers`, `/mock-limits`, `/version`, `/ultraplan`, `/autofix-pr`, etc.
 - [x] `/commit` — Create a git commit (prompt-type with injected git context)
-- [ ] Full `/agents` parity for create/edit/delete flows and multi-source management UI
+- [ ] Full `/agents` parity for interactive TUI/editor flows, plugin sources, and full multi-source management UX
 
 ## 6. Built-in Tools
 
@@ -702,21 +706,24 @@ Done:
 - [x] Basic file operations in tool implementations
 - [x] Basic git status snapshot
 - [x] Basic shell/subprocess handling
+- [x] Bundled small portable utilities — `utils/array.ts`, `utils/set.ts`, `utils/objectGroupBy.ts`, `utils/xml.ts`, `utils/uuid.ts` ported in `src/small_utils.py`
+- [x] Session-scoped env-var registry (`utils/sessionEnvVars.ts`) ported in `src/session_env_vars.py`, merged into spawned subprocess env via `_build_subprocess_env` (mirrors `utils/shell/bashProvider.ts`), and dropped on `/clear` via `clear_runtime_state` (mirrors `commands/clear/caches.ts`)
+- [x] Display formatters from `utils/format.ts` (`formatFileSize`, `formatSecondsShort`, `formatDuration`, `formatNumber`, `formatTokens`) ported in `src/format_utils.py`
 
 Missing major utility categories:
 
 - [ ] Shell utilities (`utils/bash/`, `utils/shell/`, `Shell.ts`, `ShellCommand.ts`)
-- [ ] Git operations (`utils/git.ts`, `utils/gitDiff.ts`, `utils/gitSettings.ts`, `utils/commitAttribution.ts`)
+- [ ] Git operations (`utils/git.ts`, `utils/gitDiff.ts`, `utils/gitSettings.ts`, `utils/commitAttribution.ts`) — partial: `findGitRoot`, `normalizeGitRemoteUrl`, `getRepoRemoteHash`, and `shouldIncludeGitInstructions` ported in `src/git_utils.py`
 - [ ] File operations (`utils/file.ts`, `utils/fileRead.ts`, `utils/fileHistory.ts`, `utils/fileStateCache.ts`, `utils/fsOperations.ts`, `utils/ripgrep.ts`, `utils/glob.ts`)
-- [ ] AI/Model utilities (`utils/modelCost.ts`, `utils/model/`, `utils/context.ts`, `utils/queryContext.ts`)
+- [ ] AI/Model utilities (`utils/modelCost.ts`, `utils/model/`, `utils/context.ts`, `utils/queryContext.ts`) — partial: modelCost ported in `src/model_cost.py`
 - [ ] Config/Settings (`utils/config.ts`, `utils/settings/`)
 - [ ] Message handling (`utils/messages.ts`, `utils/messages/`, `utils/messageQueueManager.ts`)
 - [ ] API/Network (`utils/api.ts`, `utils/http.ts`, `utils/proxy.ts`, `utils/auth.ts`)
 - [ ] Session management (`utils/sessionStorage.ts`, `utils/sessionState.ts`, `utils/sessionStart.ts`, `utils/sessionRestore.ts`)
 - [ ] Plugin/Skill utilities (`utils/plugins/`, `utils/skills/`)
 - [ ] Memory/Context (`utils/memory/`, `utils/claudemd.ts`, `utils/contextAnalysis.ts`)
-- [ ] IDE integration (`utils/ide.ts`, `utils/jetbrains.ts`)
-- [ ] Platform/OS (`utils/platform.ts`, `utils/terminal.ts`, `utils/systemDirectories.ts`)
+- [ ] IDE integration (`utils/ide.ts`, `utils/jetbrains.ts`) — partial: `utils/idePathConversion.ts` ported in `src/ide_path_conversion.py` (`WindowsToWSLConverter`, `checkWSLDistroMatch`)
+- [ ] Platform/OS (`utils/platform.ts`, `utils/terminal.ts`, `utils/systemDirectories.ts`) — partial: platform detection (`getPlatform`, `getWslVersion`, `getLinuxDistroInfo`, `detectVcs`) and `getSystemDirectories` ported in `src/platform_info.py`
 - [ ] Debugging (`utils/debug.ts`, `utils/diagLogs.ts`, `utils/log.ts`, `utils/profilerBase.ts`)
 - [ ] Telemetry (`utils/telemetry/`)
 - [ ] Deep link utilities (`utils/deepLink/`)

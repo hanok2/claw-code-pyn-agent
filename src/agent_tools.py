@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Iterator, Union
 
 from .agent_types import AgentPermissions, AgentRuntimeConfig, ToolExecutionResult
+from .session_env_vars import get_session_env_vars
 
 if TYPE_CHECKING:
     from .account_runtime import AccountRuntime
@@ -3321,6 +3322,11 @@ def _build_subprocess_env(context: ToolExecutionContext) -> dict[str, str]:
         for key, value in os.environ.items()
         if not _is_sensitive_env_var(key)
     }
+    # Mirror utils/shell/bashProvider.ts: session env vars (set via /env)
+    # apply to spawned children, layered above the parent env but below
+    # explicit per-call extras.
+    for key, value in get_session_env_vars().items():
+        env[key] = value
     env.update(context.extra_env)
     return env
 

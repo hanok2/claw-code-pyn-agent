@@ -16,6 +16,13 @@ _SOURCE_ORDER = {
     'userSettings': 1,
     'projectSettings': 2,
 }
+_MUTABLE_SOURCE_ALIASES = {
+    'project': 'projectSettings',
+    'projectSettings': 'projectSettings',
+    'user': 'userSettings',
+    'userSettings': 'userSettings',
+}
+_UNSET = object()
 
 
 @dataclass(frozen=True)
@@ -31,6 +38,15 @@ class AgentRegistrySnapshot:
     active_agents: tuple[AgentDefinition, ...]
     shadowed_agents: tuple[AgentDefinition, ...]
     failed_files: tuple[AgentLoadError, ...]
+
+
+@dataclass(frozen=True)
+class AgentMutationResult:
+    action: str
+    agent_type: str
+    source: str
+    file_path: str
+    overwritten: bool = False
 
 
 def load_agent_registry(cwd: Path) -> AgentRegistrySnapshot:
@@ -258,6 +274,274 @@ def render_agent_detail(snapshot: AgentRegistrySnapshot, agent_type: str) -> str
     return '\n'.join(lines)
 
 
+def normalize_mutable_source(source: str | None, *, allow_auto: bool = False) -> str:
+    if source is None:
+        return 'auto' if allow_auto else 'projectSettings'
+    normalized = source.strip()
+    if allow_auto and normalized in {'', 'auto'}:
+        return 'auto'
+    resolved = _MUTABLE_SOURCE_ALIASES.get(normalized)
+    if resolved is None:
+        choices = ', '.join(sorted(_MUTABLE_SOURCE_ALIASES))
+        if allow_auto:
+            choices = 'auto, ' + choices
+        raise ValueError(f'Unsupported agent source: {source}. Expected one of: {choices}')
+    return resolved
+
+
+def format_agent_markdown(
+    *,
+    agent_type: str,
+    description: str,
+    system_prompt: str,
+    tools: tuple[str, ...] | None = None,
+    model: str | None = None,
+    color: str | None = None,
+    permission_mode: str | None = None,
+    max_turns: int | None = None,
+    initial_prompt: str | None = None,
+    background: bool = False,
+    one_shot: bool = False,
+    omit_claude_md: bool = False,
+) -> str:
+    lines = [
+        '---',
+        f'name: {agent_type}',
+        f'description: "{_escape_frontmatter_text(description)}"',
+    ]
+    if tools is not None:
+        if tools:
+            lines.append(f'tools: {", ".join(tools)}')
+        else:
+            lines.append('tools: []')
+    if model:
+        lines.append(f'model: {model}')
+    if color:
+        lines.append(f'color: {color}')
+    if permission_mode:
+        lines.append(f'permissionMode: {permission_mode}')
+    if max_turns is not None:
+        lines.append(f'maxTurns: {max_turns}')
+    if initial_prompt:
+        lines.append(f'initialPrompt: "{_escape_frontmatter_text(initial_prompt)}"')
+    if background:
+        lines.append('background: true')
+    if one_shot:
+        lines.append('oneShot: true')
+    if omit_claude_md:
+        lines.append('omitClaudeMd: true')
+    lines.extend(['---', '', system_prompt.strip(), ''])
+    return '\n'.join(lines)
+
+
+def create_agent_definition(
+    cwd: Path,
+    *,
+    agent_type: str,
+    description: str,
+    system_prompt: str,
+    source: str = 'projectSettings',
+    overwrite: bool = False,
+    tools: tuple[str, ...] | None = None,
+    model: str | None = None,
+    color: str | None = None,
+    permission_mode: str | None = None,
+    max_turns: int | None = None,
+    initial_prompt: str | None = None,
+    background: bool = False,
+    one_shot: bool = False,
+    omit_claude_md: bool = False,
+) -> AgentMutationResult:
+    resolved_source = normalize_mutable_source(source)
+    file_path = get_agent_file_path(cwd, resolved_source, agent_type)
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    existed_before = file_path.exists()
+    if existed_before and not overwrite:
+        raise ValueError(f'Agent file already exists: {file_path}')
+    file_path.write_text(
+        format_agent_markdown(
+            agent_type=agent_type,
+            description=description,
+            system_prompt=system_prompt,
+            tools=tools,
+            model=model,
+            color=color,
+            permission_mode=permission_mode,
+            max_turns=max_turns,
+            initial_prompt=initial_prompt,
+            background=background,
+            one_shot=one_shot,
+            omit_claude_md=omit_claude_md,
+        ),
+        encoding='utf-8',
+    )
+    return AgentMutationResult(
+        action='created',
+        agent_type=agent_type,
+        source=resolved_source,
+        file_path=str(file_path),
+        overwritten=existed_before and overwrite,
+    )
+
+
+def update_agent_definition(
+    cwd: Path,
+    *,
+    agent_type: str,
+    source: str = 'auto',
+    description: str | object = _UNSET,
+    system_prompt: str | object = _UNSET,
+    tools: tuple[str, ...] | None | object = _UNSET,
+    model: str | None | object = _UNSET,
+    color: str | None | object = _UNSET,
+    permission_mode: str | None | object = _UNSET,
+    max_turns: int | None | object = _UNSET,
+    initial_prompt: str | None | object = _UNSET,
+    background: bool | object = _UNSET,
+    one_shot: bool | object = _UNSET,
+    omit_claude_md: bool | object = _UNSET,
+) -> AgentMutationResult:
+    resolved_source = normalize_mutable_source(source, allow_auto=True)
+    snapshot = load_agent_registry(cwd)
+    target = find_mutable_agent(snapshot, agent_type, source=resolved_source)
+    if target is None:
+        raise ValueError(f'No editable agent definition found for: {agent_type}')
+    file_path = get_agent_file_path(
+        cwd,
+        target.source,
+        target.agent_type,
+        filename=target.filename,
+    )
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    file_path.write_text(
+        format_agent_markdown(
+            agent_type=target.agent_type,
+            description=target.when_to_use if description is _UNSET else str(description),
+            system_prompt=target.system_prompt if system_prompt is _UNSET else str(system_prompt),
+            tools=target.tools if tools is _UNSET else tools,
+            model=target.model if model is _UNSET else model,
+            color=target.color if color is _UNSET else color,
+            permission_mode=(
+                target.permission_mode if permission_mode is _UNSET else permission_mode
+            ),
+            max_turns=target.max_turns if max_turns is _UNSET else max_turns,
+            initial_prompt=target.initial_prompt if initial_prompt is _UNSET else initial_prompt,
+            background=target.background if background is _UNSET else bool(background),
+            one_shot=target.one_shot if one_shot is _UNSET else bool(one_shot),
+            omit_claude_md=(
+                target.omit_claude_md if omit_claude_md is _UNSET else bool(omit_claude_md)
+            ),
+        ),
+        encoding='utf-8',
+    )
+    return AgentMutationResult(
+        action='updated',
+        agent_type=target.agent_type,
+        source=target.source,
+        file_path=str(file_path),
+    )
+
+
+def delete_agent_definition(
+    cwd: Path,
+    *,
+    agent_type: str,
+    source: str = 'auto',
+) -> AgentMutationResult:
+    resolved_source = normalize_mutable_source(source, allow_auto=True)
+    snapshot = load_agent_registry(cwd)
+    target = find_mutable_agent(snapshot, agent_type, source=resolved_source)
+    if target is None:
+        raise ValueError(f'No editable agent definition found for: {agent_type}')
+    file_path = get_agent_file_path(
+        cwd,
+        target.source,
+        target.agent_type,
+        filename=target.filename,
+    )
+    if not file_path.exists():
+        raise ValueError(f'Agent file does not exist: {file_path}')
+    file_path.unlink()
+    return AgentMutationResult(
+        action='deleted',
+        agent_type=target.agent_type,
+        source=target.source,
+        file_path=str(file_path),
+    )
+
+
+def scaffold_agent_definition(
+    cwd: Path,
+    *,
+    agent_type: str,
+    source: str = 'projectSettings',
+    overwrite: bool = False,
+    description: str | None = None,
+    system_prompt: str | None = None,
+) -> AgentMutationResult:
+    resolved_description = description or f'Use this agent when the task calls for {agent_type}.'
+    resolved_prompt = system_prompt or (
+        f'You are the {agent_type} agent.\n'
+        'Read the task carefully, use the available tools deliberately, and return a concise result.'
+    )
+    return create_agent_definition(
+        cwd,
+        agent_type=agent_type,
+        description=resolved_description,
+        system_prompt=resolved_prompt,
+        source=source,
+        overwrite=overwrite,
+    )
+
+
+def find_mutable_agent(
+    snapshot: AgentRegistrySnapshot,
+    agent_type: str,
+    *,
+    source: str = 'auto',
+) -> AgentDefinition | None:
+    if source == 'auto':
+        candidates = [
+            agent
+            for agent in snapshot.all_agents
+            if agent.agent_type == agent_type and agent.source in _MUTABLE_SOURCE_ALIASES.values()
+        ]
+        if not candidates:
+            return None
+        return max(candidates, key=lambda agent: _source_rank(agent.source))
+    for agent in snapshot.all_agents:
+        if agent.agent_type == agent_type and agent.source == source:
+            return agent
+    return None
+
+
+def get_agent_file_path(
+    cwd: Path,
+    source: str,
+    agent_type: str,
+    *,
+    filename: str | None = None,
+) -> Path:
+    resolved_source = normalize_mutable_source(source)
+    directories = dict(iter_agent_directories(cwd))
+    directory = directories[resolved_source]
+    return directory / f'{filename or agent_type}.md'
+
+
+def render_agent_mutation(result: AgentMutationResult) -> str:
+    return '\n'.join(
+        [
+            '# Agent',
+            '',
+            f'action={result.action}',
+            f'agent_type={result.agent_type}',
+            f'source={result.source}',
+            f'file_path={result.file_path}',
+            f'overwritten={result.overwritten}',
+        ]
+    )
+
+
 def _split_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     normalized = text.replace('\r\n', '\n')
     match = _FRONTMATTER_RE.match(normalized)
@@ -301,6 +585,14 @@ def _parse_frontmatter_value(value: str) -> Any:
         reader = csv.reader([inner], skipinitialspace=True)
         return [item.strip().strip('"').strip("'") for item in next(reader)]
     return value
+
+
+def _escape_frontmatter_text(value: str) -> str:
+    return (
+        value.replace('\\', '\\\\')
+        .replace('"', '\\"')
+        .replace('\n', '\\\\n')
+    )
 
 
 def _parse_tool_list(value: Any) -> tuple[str, ...] | None:

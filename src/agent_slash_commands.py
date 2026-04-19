@@ -414,6 +414,141 @@ def get_slash_command_specs() -> tuple[SlashCommandSpec, ...]:
             description='Restore the conversation to a previous point.',
             handler=_handle_rewind,
         ),
+        SlashCommandSpec(
+            names=('output-style',),
+            description='Deprecated: use /config to change your output style.',
+            handler=_handle_output_style,
+        ),
+        SlashCommandSpec(
+            names=('release-notes',),
+            description='Show local release notes or a link to the changelog.',
+            handler=_handle_release_notes,
+        ),
+        SlashCommandSpec(
+            names=('feedback', 'bug'),
+            description='Open the Claude Code feedback page in a browser.',
+            handler=_handle_feedback,
+        ),
+        SlashCommandSpec(
+            names=('upgrade',),
+            description='Open the Claude.ai upgrade page in a browser.',
+            handler=_handle_upgrade,
+        ),
+        SlashCommandSpec(
+            names=('stickers',),
+            description='Open the Claude Code sticker order page in a browser.',
+            handler=_handle_stickers,
+        ),
+        SlashCommandSpec(
+            names=('mobile', 'ios', 'android'),
+            description='Show download links for the Claude mobile apps.',
+            handler=_handle_mobile,
+        ),
+        SlashCommandSpec(
+            names=('desktop', 'app'),
+            description='Show the Claude Desktop handoff page link.',
+            handler=_handle_desktop,
+        ),
+        SlashCommandSpec(
+            names=('install-github-app',),
+            description='Open the Claude GitHub Actions setup page.',
+            handler=_handle_install_github_app,
+        ),
+        SlashCommandSpec(
+            names=('install-slack-app',),
+            description='Open the Claude Slack app installation page.',
+            handler=_handle_install_slack_app,
+        ),
+        SlashCommandSpec(
+            names=('privacy-settings',),
+            description='Open the Claude.ai privacy controls page.',
+            handler=_handle_privacy_settings,
+        ),
+        SlashCommandSpec(
+            names=('extra-usage',),
+            description='Show extra-usage configuration link.',
+            handler=_handle_extra_usage,
+        ),
+        SlashCommandSpec(
+            names=('passes',),
+            description='Show Claude Code guest passes information.',
+            handler=_handle_passes,
+        ),
+        SlashCommandSpec(
+            names=('rate-limit-options',),
+            description='Show options when the active account hits a rate limit.',
+            handler=_handle_rate_limit_options,
+        ),
+        SlashCommandSpec(
+            names=('chrome',),
+            description='Open the Claude Chrome extension page.',
+            handler=_handle_chrome,
+        ),
+        SlashCommandSpec(
+            names=('reload-plugins',),
+            description='Reload local plugin manifests and report counts.',
+            handler=_handle_reload_plugins,
+        ),
+        SlashCommandSpec(
+            names=('theme',),
+            description='List available themes or set the current theme.',
+            handler=_handle_theme,
+        ),
+        SlashCommandSpec(
+            names=('voice',),
+            description='Toggle voice-mode setting for this workspace.',
+            handler=_handle_voice,
+        ),
+        SlashCommandSpec(
+            names=('sandbox-toggle', 'sandbox'),
+            description='Show sandbox status or exclude a command pattern.',
+            handler=_handle_sandbox_toggle,
+        ),
+        SlashCommandSpec(
+            names=('keybindings',),
+            description='Print or create the local keybindings file.',
+            handler=_handle_keybindings,
+        ),
+        SlashCommandSpec(
+            names=('btw',),
+            description='Ask Claude a quick side question without altering state.',
+            handler=_handle_btw,
+        ),
+        SlashCommandSpec(
+            names=('version',),
+            description='Print the running version of the agent.',
+            handler=_handle_version,
+        ),
+        SlashCommandSpec(
+            names=('init',),
+            description='Initialize a CLAUDE.md file with codebase documentation.',
+            handler=_handle_init,
+        ),
+        SlashCommandSpec(
+            names=('ide',),
+            description='Show detected IDE/terminal integration status.',
+            handler=_handle_ide,
+        ),
+        SlashCommandSpec(
+            names=('plugin',),
+            description='List installed plugins or show plugin subcommand usage.',
+            handler=_handle_plugin,
+        ),
+        SlashCommandSpec(
+            names=('remote-env',),
+            description='List remote environments or set the default profile.',
+            handler=_handle_remote_env,
+        ),
+        SlashCommandSpec(
+            names=('bridge', 'remote-control', 'rc'),
+            description='Report remote-control bridge status (read-only in this runtime).',
+            handler=_handle_bridge,
+        ),
+        SlashCommandSpec(
+            names=('remote-setup', 'web-setup'),
+            description='Report Claude Code on the web setup readiness (gh + sign-in checks).',
+            handler=_handle_remote_setup,
+        ),
     )
 
 
@@ -809,12 +944,114 @@ def _handle_agents(agent: 'LocalCodingAgent', args: str, input_text: str) -> Sla
         return _local_result(input_text, agent.render_agents_report())
     if trimmed == 'all':
         return _local_result(input_text, agent.render_agents_report(show_all=True))
+    if trimmed.startswith('create '):
+        try:
+            source, agent_type, description, system_prompt = _parse_agent_mutation_payload(
+                trimmed[7:].strip(),
+                default_source='projectSettings',
+                mode='create',
+            )
+        except ValueError as exc:
+            return _local_result(input_text, str(exc))
+        return _local_result(
+            input_text,
+            agent.render_agent_create_report(
+                agent_type,
+                source=source,
+                description=description,
+                system_prompt=system_prompt,
+            ),
+        )
+    if trimmed.startswith('update '):
+        try:
+            source, agent_type, description, system_prompt = _parse_agent_mutation_payload(
+                trimmed[7:].strip(),
+                default_source='auto',
+                mode='update',
+            )
+        except ValueError as exc:
+            return _local_result(input_text, str(exc))
+        if description is None and system_prompt is None:
+            return _local_result(
+                input_text,
+                'Usage: /agents update [user|project] <agent-type> [description] [:: system prompt]',
+            )
+        return _local_result(
+            input_text,
+            agent.render_agent_update_report(
+                agent_type,
+                source=source,
+                description=description,
+                system_prompt=system_prompt,
+            ),
+        )
+    if trimmed.startswith('delete '):
+        try:
+            source, agent_type = _parse_agent_target(trimmed[7:].strip(), default_source='auto')
+        except ValueError as exc:
+            return _local_result(input_text, str(exc))
+        return _local_result(
+            input_text,
+            agent.render_agent_delete_report(agent_type, source=source),
+        )
     if trimmed.startswith('show '):
         agent_type = trimmed[5:].strip()
         if not agent_type:
-            return _local_result(input_text, 'Usage: /agents [all|active|show <agent-type>]')
+            return _local_result(input_text, _agents_usage())
         return _local_result(input_text, agent.render_agent_detail_report(agent_type))
     return _local_result(input_text, agent.render_agent_detail_report(trimmed))
+
+
+def _agents_usage() -> str:
+    return (
+        'Usage: /agents [all|active|show <agent-type>|'
+        'create [user|project] <agent-type> [description] [:: system prompt]|'
+        'update [user|project] <agent-type> [description] [:: system prompt]|'
+        'delete [user|project] <agent-type>]'
+    )
+
+
+def _parse_agent_target(payload: str, *, default_source: str) -> tuple[str, str]:
+    tokens = payload.split()
+    if not tokens:
+        raise ValueError(_agents_usage())
+    source = default_source
+    if tokens[0] in {'user', 'project', 'userSettings', 'projectSettings', 'auto'}:
+        source = tokens.pop(0)
+    if not tokens:
+        raise ValueError(_agents_usage())
+    return source, tokens[0]
+
+
+def _parse_agent_mutation_payload(
+    payload: str,
+    *,
+    default_source: str,
+    mode: str,
+) -> tuple[str, str, str | None, str | None]:
+    parts = [part.strip() for part in payload.split('::')]
+    source, agent_type = _parse_agent_target(parts[0], default_source=default_source)
+    head_tokens = parts[0].split()
+    if head_tokens and head_tokens[0] in {'user', 'project', 'userSettings', 'projectSettings', 'auto'}:
+        head_tokens = head_tokens[1:]
+    trailing_description = ' '.join(head_tokens[1:]).strip() if len(head_tokens) > 1 else ''
+    description = trailing_description or None
+    system_prompt = None
+    if mode == 'create':
+        if len(parts) >= 2 and parts[1]:
+            description = parts[1]
+        if len(parts) >= 3 and parts[2]:
+            system_prompt = parts[2]
+    else:
+        if len(parts) >= 2 and parts[1]:
+            if trailing_description:
+                system_prompt = parts[1]
+            else:
+                system_prompt = parts[1]
+        if len(parts) >= 3:
+            description = parts[1] or description
+            system_prompt = parts[2] or system_prompt
+    return source, agent_type, description, system_prompt
 
 
 def _handle_memory(agent: 'LocalCodingAgent', _args: str, input_text: str) -> SlashCommandResult:
@@ -1430,11 +1667,19 @@ def _handle_add_dir(agent: 'LocalCodingAgent', args: str, input_text: str) -> Sl
 
 
 def _handle_skills(agent: 'LocalCodingAgent', _args: str, input_text: str) -> SlashCommandResult:
-    """List available skills."""
+    """List bundled skills (mirrors npm `/skills` SkillsMenu listing)."""
+    from .bundled_skills import get_bundled_skills
+
     lines = ['## Available Skills', '']
-    for spec in get_slash_command_specs():
-        primary = f'/{spec.names[0]}'
-        lines.append(f'- `{primary}`: {spec.description}')
+    for skill in get_bundled_skills():
+        if not skill.user_invocable:
+            continue
+        header = f'- `{skill.name}`'
+        if skill.aliases:
+            header += f' (aliases: {", ".join(skill.aliases)})'
+        lines.append(f'{header}: {skill.description}')
+        if skill.when_to_use:
+            lines.append(f'  - When to use: {skill.when_to_use}')
     lines.extend(['', 'Use the Skill tool to invoke skills programmatically.'])
     return _local_result(input_text, '\n'.join(lines))
 
@@ -1512,6 +1757,817 @@ def _handle_rewind(agent: 'LocalCodingAgent', args: str, input_text: str) -> Sla
         input_text,
         f'Rewound conversation to message {target}. Removed {removed_count} messages.',
     )
+
+
+_FEEDBACK_URL = 'https://github.com/anthropics/claude-code/issues'
+_UPGRADE_URL = 'https://claude.ai/upgrade/max'
+_STICKERS_URL = 'https://www.stickermule.com/claudecode'
+_MOBILE_IOS_URL = 'https://apps.apple.com/app/claude-by-anthropic/id6473753684'
+_MOBILE_ANDROID_URL = 'https://play.google.com/store/apps/details?id=com.anthropic.claude'
+_DESKTOP_URL = 'https://claude.ai/download'
+_GITHUB_APP_URL = 'https://github.com/apps/claude'
+_SLACK_APP_URL = 'https://slack.com/marketplace/A08SF47R6P4-claude'
+_PRIVACY_URL = 'https://claude.ai/settings/data-privacy-controls'
+_CHROME_EXTENSION_URL = 'https://claude.ai/chrome'
+_CHANGELOG_URL = 'https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md'
+
+
+def _try_open_browser(url: str) -> bool:
+    import os
+    import webbrowser
+
+    # Avoid spawning a browser in CI / non-interactive environments.
+    if os.environ.get('CLAUDE_CODE_NO_BROWSER') or os.environ.get('CI'):
+        return False
+    try:
+        return webbrowser.open(url, new=2)
+    except Exception:
+        return False
+
+
+def _open_or_link(url: str, *, opening_message: str, fallback_message: str) -> str:
+    if _try_open_browser(url):
+        return f'{opening_message}\n  {url}'
+    return f'{fallback_message}\n  {url}'
+
+
+def _changelog_path(agent: 'LocalCodingAgent') -> 'Path':
+    from pathlib import Path
+
+    cwd = Path(agent.runtime_config.cwd)
+    for candidate in (cwd / 'CHANGELOG.md', cwd / 'docs' / 'CHANGELOG.md'):
+        if candidate.exists():
+            return candidate
+    return cwd / 'CHANGELOG.md'
+
+
+def _handle_output_style(
+    agent: 'LocalCodingAgent',
+    _args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    return _local_result(
+        input_text,
+        '/output-style has been deprecated. Use /config to change your output style, '
+        'or set it in your settings file. Changes take effect on the next session.',
+    )
+
+
+def _handle_release_notes(
+    agent: 'LocalCodingAgent',
+    _args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    path = _changelog_path(agent)
+    if path.exists():
+        try:
+            content = path.read_text(encoding='utf-8').strip()
+        except OSError as exc:
+            return _local_result(input_text, f'Could not read {path}: {exc}')
+        # Show only the most recent release block (everything up to the second
+        # second-level heading, mirroring how the npm command surfaces a single
+        # version chunk by default).
+        lines = content.splitlines()
+        chunk: list[str] = []
+        seen_heading = False
+        for line in lines:
+            if line.startswith('## '):
+                if seen_heading:
+                    break
+                seen_heading = True
+            chunk.append(line)
+        return _local_result(input_text, '\n'.join(chunk).strip() or content)
+    return _local_result(
+        input_text,
+        f'No local CHANGELOG.md found. See the full changelog at:\n  {_CHANGELOG_URL}',
+    )
+
+
+def _handle_feedback(
+    agent: 'LocalCodingAgent',
+    args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    note = args.strip()
+    body = _open_or_link(
+        _FEEDBACK_URL,
+        opening_message='Opening the Claude Code feedback tracker in your browser…',
+        fallback_message='Submit feedback at:',
+    )
+    if note:
+        body += f'\n\nDraft note (copy into the report form):\n{note}'
+    return _local_result(input_text, body)
+
+
+def _handle_upgrade(
+    agent: 'LocalCodingAgent',
+    _args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    return _local_result(
+        input_text,
+        _open_or_link(
+            _UPGRADE_URL,
+            opening_message='Opening the Claude.ai upgrade page in your browser…',
+            fallback_message='Upgrade your account at:',
+        ),
+    )
+
+
+def _handle_stickers(
+    agent: 'LocalCodingAgent',
+    _args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    return _local_result(
+        input_text,
+        _open_or_link(
+            _STICKERS_URL,
+            opening_message='Opening the Claude Code sticker page in your browser…',
+            fallback_message='Order Claude Code stickers at:',
+        ),
+    )
+
+
+def _handle_mobile(
+    agent: 'LocalCodingAgent',
+    _args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    lines = [
+        'Download the Claude mobile app:',
+        f'  iOS:     {_MOBILE_IOS_URL}',
+        f'  Android: {_MOBILE_ANDROID_URL}',
+    ]
+    return _local_result(input_text, '\n'.join(lines))
+
+
+def _handle_desktop(
+    agent: 'LocalCodingAgent',
+    _args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    import platform
+
+    system = platform.system()
+    if system not in {'Darwin', 'Windows'}:
+        return _local_result(
+            input_text,
+            f'Claude Desktop is currently available on macOS and Windows only '
+            f'(detected: {system}). Download:\n  {_DESKTOP_URL}',
+        )
+    return _local_result(
+        input_text,
+        _open_or_link(
+            _DESKTOP_URL,
+            opening_message='Opening the Claude Desktop download page in your browser…',
+            fallback_message='Download Claude Desktop at:',
+        ),
+    )
+
+
+def _handle_install_github_app(
+    agent: 'LocalCodingAgent',
+    _args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    return _local_result(
+        input_text,
+        _open_or_link(
+            _GITHUB_APP_URL,
+            opening_message='Opening the Claude GitHub App installation page in your browser…',
+            fallback_message='Set up Claude GitHub Actions at:',
+        ),
+    )
+
+
+def _handle_install_slack_app(
+    agent: 'LocalCodingAgent',
+    _args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    return _local_result(
+        input_text,
+        _open_or_link(
+            _SLACK_APP_URL,
+            opening_message='Opening the Claude Slack app marketplace page in your browser…',
+            fallback_message="Couldn't open browser. Visit:",
+        ),
+    )
+
+
+def _handle_privacy_settings(
+    agent: 'LocalCodingAgent',
+    _args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    return _local_result(
+        input_text,
+        f'Review and manage your privacy settings at:\n  {_PRIVACY_URL}',
+    )
+
+
+def _handle_extra_usage(
+    agent: 'LocalCodingAgent',
+    _args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    return _local_result(
+        input_text,
+        'Configure extra usage on a Claude.ai account at:\n'
+        f'  {_UPGRADE_URL}\n'
+        'After upgrading, run /login to refresh your local credentials.',
+    )
+
+
+def _handle_passes(
+    agent: 'LocalCodingAgent',
+    _args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    return _local_result(
+        input_text,
+        'Claude Code guest passes are managed in your Claude.ai account.\n'
+        '  Visit https://claude.ai to sign in and view remaining passes.',
+    )
+
+
+def _handle_rate_limit_options(
+    agent: 'LocalCodingAgent',
+    _args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    lines = [
+        'When the current account hits a rate limit, you can:',
+        '  - Run /upgrade to move to a higher Claude.ai plan.',
+        '  - Run /extra-usage to enable per-message billing on a Claude.ai plan.',
+        '  - Run /login to switch to an API-key billed account.',
+        f'See {_UPGRADE_URL} for plan details.',
+    ]
+    return _local_result(input_text, '\n'.join(lines))
+
+
+def _handle_chrome(
+    agent: 'LocalCodingAgent',
+    _args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    return _local_result(
+        input_text,
+        _open_or_link(
+            _CHROME_EXTENSION_URL,
+            opening_message='Opening the Claude Chrome extension page in your browser…',
+            fallback_message='Install the Claude Chrome extension at:',
+        ),
+    )
+
+
+def _handle_reload_plugins(
+    agent: 'LocalCodingAgent',
+    _args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    from pathlib import Path
+    from .plugin_runtime import PluginRuntime
+
+    runtime = PluginRuntime.from_workspace(Path(agent.runtime_config.cwd))
+    agent.plugin_runtime = runtime
+    plugin_count = len(runtime.manifests)
+    tool_count = sum(len(manifest.tool_names) for manifest in runtime.manifests)
+    hook_count = sum(len(manifest.hook_names) for manifest in runtime.manifests)
+    virtual_count = sum(len(manifest.virtual_tools) for manifest in runtime.manifests)
+    return _local_result(
+        input_text,
+        'Reloaded plugins: '
+        f'{plugin_count} plugin(s) · {tool_count} tool(s) · {hook_count} hook(s) · '
+        f'{virtual_count} virtual tool(s)',
+    )
+
+
+_AVAILABLE_THEMES = (
+    'light',
+    'dark',
+    'light-daltonized',
+    'dark-daltonized',
+    'light-ansi',
+    'dark-ansi',
+)
+
+
+def _config_get(runtime, key_path: str, default=None):
+    try:
+        return runtime.get_value(key_path)
+    except KeyError:
+        return default
+
+
+def _handle_theme(
+    agent: 'LocalCodingAgent',
+    args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    runtime = agent.config_runtime
+    if runtime is None:
+        return _local_result(input_text, 'Config runtime is unavailable.')
+    requested = args.strip()
+    current = _config_get(runtime, 'theme') or 'light'
+    if not requested:
+        lines = ['Available themes:']
+        for name in _AVAILABLE_THEMES:
+            marker = ' (current)' if name == current else ''
+            lines.append(f'  - {name}{marker}')
+        lines.append('')
+        lines.append('Usage: /theme <name>')
+        return _local_result(input_text, '\n'.join(lines))
+    if requested not in _AVAILABLE_THEMES:
+        return _local_result(
+            input_text,
+            f'Unknown theme "{requested}". Available: {", ".join(_AVAILABLE_THEMES)}.',
+        )
+    mutation = runtime.set_value('theme', requested, source='local')
+    return _local_result(
+        input_text,
+        f'Theme set to {requested} (saved to {mutation.store_path}).',
+    )
+
+
+def _handle_voice(
+    agent: 'LocalCodingAgent',
+    args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    runtime = agent.config_runtime
+    if runtime is None:
+        return _local_result(input_text, 'Config runtime is unavailable.')
+    arg = args.strip().lower()
+    current = bool(_config_get(runtime, 'voiceEnabled', False))
+    if arg in {'on', 'enable', 'true'}:
+        new_value = True
+    elif arg in {'off', 'disable', 'false'}:
+        new_value = False
+    elif not arg:
+        new_value = not current
+    else:
+        return _local_result(input_text, 'Usage: /voice [on|off]')
+    mutation = runtime.set_value('voiceEnabled', new_value, source='local')
+    state = 'enabled' if new_value else 'disabled'
+    extra = ''
+    if new_value:
+        import platform
+
+        if platform.system() == 'Linux':
+            extra = (
+                '\nLinux note: confirm microphone access in your audio settings '
+                'before holding to talk.'
+            )
+    return _local_result(
+        input_text,
+        f'Voice mode {state} (saved to {mutation.store_path}).{extra}',
+    )
+
+
+def _handle_sandbox_toggle(
+    agent: 'LocalCodingAgent',
+    args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    runtime = agent.config_runtime
+    if runtime is None:
+        return _local_result(input_text, 'Config runtime is unavailable.')
+    trimmed = args.strip()
+    if not trimmed:
+        enabled = bool(_config_get(runtime, 'sandbox.enabled', False))
+        excluded = _config_get(runtime, 'sandbox.excludedCommands') or []
+        lines = [
+            f'Sandbox: {"enabled" if enabled else "disabled"}',
+            f'Excluded commands ({len(excluded)}):',
+        ]
+        for pattern in excluded:
+            lines.append(f'  - {pattern}')
+        lines.append('')
+        lines.append(
+            'Usage: /sandbox-toggle exclude "<pattern>"  '
+            '— append a command pattern to the local sandbox excludes.'
+        )
+        return _local_result(input_text, '\n'.join(lines))
+
+    parts = trimmed.split(None, 1)
+    subcommand = parts[0].lower()
+    if subcommand != 'exclude':
+        return _local_result(
+            input_text,
+            f'Unknown subcommand "{subcommand}". Available: exclude.',
+        )
+    if len(parts) < 2 or not parts[1].strip():
+        return _local_result(
+            input_text,
+            'Usage: /sandbox-toggle exclude "<pattern>" '
+            '(e.g., /sandbox-toggle exclude "npm run test:*").',
+        )
+    pattern = parts[1].strip().strip('"').strip("'")
+    existing = list(_config_get(runtime, 'sandbox.excludedCommands') or [])
+    if pattern in existing:
+        return _local_result(
+            input_text,
+            f'Pattern "{pattern}" is already in sandbox.excludedCommands.',
+        )
+    existing.append(pattern)
+    mutation = runtime.set_value(
+        'sandbox.excludedCommands', existing, source='local',
+    )
+    return _local_result(
+        input_text,
+        f'Added "{pattern}" to sandbox.excludedCommands in {mutation.store_path}.',
+    )
+
+
+_KEYBINDINGS_TEMPLATE = (
+    '{\n'
+    '  "$schema": "https://claude.ai/schemas/keybindings.json",\n'
+    '  "bindings": {\n'
+    '    // "chat:submit": "ctrl+enter"\n'
+    '  }\n'
+    '}\n'
+)
+
+
+def _handle_keybindings(
+    agent: 'LocalCodingAgent',
+    _args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    from pathlib import Path
+
+    cwd = Path(agent.runtime_config.cwd)
+    path = cwd / '.claude' / 'keybindings.json'
+    created = False
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(_KEYBINDINGS_TEMPLATE, encoding='utf-8')
+        created = True
+    verb = 'Created' if created else 'Found'
+    import os
+
+    editor = os.environ.get('EDITOR') or os.environ.get('VISUAL') or '<your editor>'
+    return _local_result(
+        input_text,
+        f'{verb} {path}.\n'
+        f'Edit it with: {editor} {path}',
+    )
+
+
+def _handle_btw(
+    agent: 'LocalCodingAgent',
+    args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    question = args.strip()
+    if not question:
+        return _local_result(input_text, 'Usage: /btw <your question>')
+    prompt = (
+        'Answer the following side question concisely. Do NOT modify any files, '
+        "run shell commands, or alter the workspace — just answer in text.\n\n"
+        f'Side question: {question}'
+    )
+    return _prompt_result(input_text, prompt)
+
+
+def _read_package_version() -> str:
+    try:
+        from importlib.metadata import PackageNotFoundError, version
+
+        return version('claw-code-agent')
+    except Exception:
+        return 'unknown'
+
+
+def _handle_version(
+    agent: 'LocalCodingAgent',
+    _args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    import platform
+    import sys
+
+    pkg_version = _read_package_version()
+    py_version = platform.python_version()
+    impl = sys.implementation.name
+    return _local_result(
+        input_text,
+        f'claw-code-agent {pkg_version} (Python {py_version}, {impl}).',
+    )
+
+
+_INIT_PROMPT = (
+    'Please analyze this codebase and create a CLAUDE.md file, which will be '
+    'given to future instances of Claude Code to operate in this repository.\n'
+    '\n'
+    'What to add:\n'
+    '1. Commands that will be commonly used, such as how to build, lint, and '
+    'run tests. Include the necessary commands to develop in this codebase, '
+    'such as how to run a single test.\n'
+    '2. High-level code architecture and structure so that future instances '
+    'can be productive more quickly. Focus on the "big picture" architecture '
+    'that requires reading multiple files to understand.\n'
+    '\n'
+    'Usage notes:\n'
+    "- If there's already a CLAUDE.md, suggest improvements to it.\n"
+    '- When you make the initial CLAUDE.md, do not repeat yourself and do not '
+    'include obvious instructions like "Provide helpful error messages to '
+    'users", "Write unit tests for all new utilities", "Never include '
+    'sensitive information (API keys, tokens) in code or commits".\n'
+    '- Avoid listing every component or file structure that can be easily '
+    'discovered.\n'
+    "- Don't include generic development practices.\n"
+    '- If there are Cursor rules (in .cursor/rules/ or .cursorrules) or '
+    'Copilot rules (in .github/copilot-instructions.md), make sure to include '
+    'the important parts.\n'
+    '- If there is a README.md, make sure to include the important parts.\n'
+    '- Do not make up information such as "Common Development Tasks", "Tips '
+    'for Development", "Support and Documentation" unless this is expressly '
+    'included in other files that you read.\n'
+    '- Be sure to prefix the file with the following text:\n'
+    '\n'
+    '```\n'
+    '# CLAUDE.md\n'
+    '\n'
+    'This file provides guidance to Claude Code (claude.ai/code) when '
+    'working with code in this repository.\n'
+    '```'
+)
+
+
+def _handle_init(
+    agent: 'LocalCodingAgent',
+    _args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    return _prompt_result(input_text, _INIT_PROMPT)
+
+
+def _detect_ide_environment() -> tuple[str, list[str]]:
+    """Return a (label, details) summary of the IDE/terminal integration."""
+    import os
+
+    details: list[str] = []
+    label = 'No IDE detected'
+    term_program = os.environ.get('TERM_PROGRAM')
+    if term_program:
+        details.append(f'TERM_PROGRAM={term_program}')
+    if os.environ.get('VSCODE_INJECTION') or os.environ.get('VSCODE_PID'):
+        label = 'Visual Studio Code'
+        for key in ('VSCODE_PID', 'VSCODE_IPC_HOOK', 'VSCODE_GIT_IPC_HANDLE'):
+            value = os.environ.get(key)
+            if value:
+                details.append(f'{key}={value}')
+    elif os.environ.get('JETBRAINS_IDE') or os.environ.get('TERMINAL_EMULATOR', '').startswith('JetBrains'):
+        label = 'JetBrains IDE'
+        for key in ('JETBRAINS_IDE', 'TERMINAL_EMULATOR', 'IDEA_INITIAL_DIRECTORY'):
+            value = os.environ.get(key)
+            if value:
+                details.append(f'{key}={value}')
+    elif term_program == 'iTerm.app':
+        label = 'iTerm2 (no IDE integration)'
+    elif term_program == 'Apple_Terminal':
+        label = 'Terminal.app (no IDE integration)'
+    elif term_program == 'tmux':
+        label = 'tmux session (no IDE integration)'
+    elif os.environ.get('SSH_CONNECTION'):
+        label = 'SSH session (no IDE integration)'
+        details.append('SSH_CONNECTION present')
+    return label, details
+
+
+def _handle_ide(
+    agent: 'LocalCodingAgent',
+    _args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    label, details = _detect_ide_environment()
+    lines = [f'IDE/terminal integration: {label}']
+    for detail in details:
+        lines.append(f'  - {detail}')
+    if not details and label.startswith('No IDE'):
+        lines.append('  (No relevant TERM_PROGRAM/VSCODE/JETBRAINS env vars found.)')
+    lines.append('')
+    lines.append(
+        'IDE auto-connect dialogs are not implemented in the Python runtime; '
+        'launch the agent from inside your IDE terminal to inherit its env.'
+    )
+    return _local_result(input_text, '\n'.join(lines))
+
+
+def _handle_plugin(
+    agent: 'LocalCodingAgent',
+    args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    runtime = agent.plugin_runtime
+    if runtime is None:
+        return _local_result(input_text, 'Plugin runtime is unavailable.')
+    sub = args.strip().split(None, 1)
+    action = sub[0].lower() if sub else 'list'
+    if action in {'help', '--help', '-h'}:
+        return _local_result(
+            input_text,
+            'Usage: /plugin [list]\n'
+            '  list  Show installed plugin manifests (default).\n'
+            '\n'
+            'Marketplace install/uninstall/enable/disable flows are not '
+            'implemented in the Python runtime — edit plugin manifests on '
+            'disk and run /reload-plugins to pick up changes.',
+        )
+    if action != 'list':
+        return _local_result(
+            input_text,
+            f'Unknown plugin subcommand "{action}". Try /plugin help.',
+        )
+    manifests = runtime.manifests
+    if not manifests:
+        return _local_result(
+            input_text,
+            'No installed plugins.\n'
+            'Drop a plugin manifest under .claude/plugins/<name>/manifest.json '
+            'and run /reload-plugins.',
+        )
+    lines = [f'Installed plugins ({len(manifests)}):']
+    for manifest in manifests:
+        version_str = f' v{manifest.version}' if manifest.version else ''
+        lines.append(f'- {manifest.name}{version_str}')
+        if manifest.description:
+            lines.append(f'    {manifest.description}')
+        if manifest.tool_names:
+            lines.append(f'    tools: {", ".join(manifest.tool_names)}')
+        if manifest.hook_names:
+            lines.append(f'    hooks: {", ".join(manifest.hook_names)}')
+        if manifest.virtual_tools:
+            lines.append(
+                f'    virtual tools: '
+                f'{", ".join(tool.name for tool in manifest.virtual_tools)}'
+            )
+    return _local_result(input_text, '\n'.join(lines))
+
+
+def _handle_remote_env(
+    agent: 'LocalCodingAgent',
+    args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    runtime = agent.remote_runtime
+    if runtime is None:
+        return _local_result(input_text, 'Remote runtime is unavailable.')
+    config = agent.config_runtime
+    requested = args.strip()
+    current_default = (
+        _config_get(config, 'defaultRemoteEnvironment') if config else None
+    )
+    if not requested:
+        lines = ['Available remote environments:']
+        if not runtime.profiles:
+            lines.append('  (no profiles found in .claude/remote.json)')
+        for profile in runtime.profiles:
+            marker = ' (default)' if profile.name == current_default else ''
+            lines.append(
+                f'  - {profile.name} [{profile.mode}] -> {profile.target}{marker}'
+            )
+        if current_default:
+            lines.append('')
+            lines.append(f'Current default: {current_default}')
+        lines.append('')
+        lines.append('Usage: /remote-env <name>  — set the default profile')
+        lines.append('Usage: /remote-env clear   — unset the default profile')
+        return _local_result(input_text, '\n'.join(lines))
+
+    if requested.lower() == 'clear':
+        if config is None:
+            return _local_result(input_text, 'Config runtime is unavailable.')
+        if current_default is None:
+            return _local_result(input_text, 'No default remote environment was set.')
+        # set_value with None — write null to settings
+        mutation = config.set_value('defaultRemoteEnvironment', None, source='local')
+        return _local_result(
+            input_text,
+            f'Cleared default remote environment (saved to {mutation.store_path}).',
+        )
+
+    profile = runtime.get_profile(requested)
+    if profile is None:
+        return _local_result(
+            input_text,
+            f'Unknown remote environment "{requested}". '
+            'Run /remote-env to list available profiles.',
+        )
+    if config is None:
+        return _local_result(input_text, 'Config runtime is unavailable.')
+    mutation = config.set_value(
+        'defaultRemoteEnvironment', profile.name, source='local',
+    )
+    return _local_result(
+        input_text,
+        f'Default remote environment set to {profile.name} '
+        f'[{profile.mode}] -> {profile.target} (saved to {mutation.store_path}).',
+    )
+
+
+def _handle_bridge(
+    agent: 'LocalCodingAgent',
+    args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    runtime = agent.remote_runtime
+    requested_name = args.strip() or None
+    lines = ['Remote-control bridge: not implemented in the Python runtime.']
+    lines.append(
+        '  The npm CLI hosts an interactive bridge against claude.ai; this '
+        'runtime only inspects the local remote-runtime state.'
+    )
+    if runtime is None:
+        lines.append('  (Remote runtime is unavailable.)')
+        return _local_result(input_text, '\n'.join(lines))
+
+    connection = runtime.active_connection
+    if connection is not None:
+        lines.append('')
+        lines.append('Active local remote connection:')
+        lines.append(f'  - mode: {connection.mode}')
+        lines.append(f'  - target: {connection.target}')
+        if connection.profile_name:
+            lines.append(f'  - profile: {connection.profile_name}')
+        if connection.session_url:
+            lines.append(f'  - session URL: {connection.session_url}')
+        if connection.workspace_cwd:
+            lines.append(f'  - workspace: {connection.workspace_cwd}')
+    else:
+        lines.append('')
+        lines.append('No active local remote connection.')
+    if requested_name:
+        profile = runtime.get_profile(requested_name)
+        lines.append('')
+        if profile is None:
+            lines.append(
+                f'No matching remote profile for "{requested_name}". '
+                'Run /remote-env to list available profiles.'
+            )
+        else:
+            lines.append(
+                f'Matched remote profile "{profile.name}" '
+                f'({profile.mode} -> {profile.target}). '
+                'Use the npm CLI bridge to actually connect.'
+            )
+    return _local_result(input_text, '\n'.join(lines))
+
+
+def _gh_auth_status() -> tuple[str, str]:
+    """Return (status, detail) — status is one of 'not_installed',
+    'authenticated', 'not_authenticated', 'unknown'."""
+    import shutil
+    import subprocess
+
+    if shutil.which('gh') is None:
+        return ('not_installed', 'gh CLI not on PATH')
+    try:
+        result = subprocess.run(
+            ['gh', 'auth', 'status'],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (subprocess.SubprocessError, OSError) as exc:
+        return ('unknown', f'gh auth status failed: {exc}')
+    detail = (result.stderr or result.stdout or '').strip().splitlines()
+    summary = detail[0] if detail else ''
+    if result.returncode == 0:
+        return ('authenticated', summary or 'Authenticated to GitHub')
+    return ('not_authenticated', summary or 'Not authenticated to GitHub')
+
+
+def _handle_remote_setup(
+    agent: 'LocalCodingAgent',
+    _args: str,
+    input_text: str,
+) -> SlashCommandResult:
+    code_web_url = 'https://claude.ai/code'
+    gh_status, gh_detail = _gh_auth_status()
+    lines = [
+        'Claude Code on the web setup:',
+        f'  Visit {code_web_url} to manage your environments.',
+        '',
+        f'GitHub CLI: {gh_status}',
+        f'  {gh_detail}',
+    ]
+    if gh_status == 'not_installed':
+        lines.append('  Install gh from https://cli.github.com to import a GitHub token.')
+    elif gh_status == 'not_authenticated':
+        lines.append('  Run `gh auth login` to authenticate before importing your token.')
+    elif gh_status == 'authenticated':
+        lines.append('  You can run `gh auth token` to retrieve the token to import on the web.')
+    lines.append('')
+    lines.append(
+        'Token import / default-environment provisioning is not implemented '
+        'in the Python runtime — complete remote setup from the npm CLI or '
+        'directly on claude.ai/code.'
+    )
+    return _local_result(input_text, '\n'.join(lines))
 
 
 def _prompt_result(input_text: str, prompt: str) -> SlashCommandResult:
