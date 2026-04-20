@@ -822,6 +822,7 @@ Mirrored / scaffold areas needing real implementation:
 - [ ] Token budget calculations
 
 ### Tier 3 — Nice-to-Have Features
+- [x] Local web GUI (FastAPI + vanilla JS SPA) → `src/gui/__main__.py`, `src/gui/server.py`, `src/gui/static/*`; launch with `python -m src.gui` or `claw-code-gui`
 - [ ] TUI/Ink component library
 - [ ] Voice mode
 - [ ] VIM mode and keybinding system

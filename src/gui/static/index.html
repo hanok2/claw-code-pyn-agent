@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Claw Code</title>
+  <link rel="stylesheet" href="/static/app.css" />
+</head>
+<body>
+  <div id="app">
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <div class="brand">
+          <span class="brand-mark">CC</span>
+          <span class="brand-name">Claw&nbsp;Code</span>
+        </div>
+        <button id="new-session-btn" class="btn-primary" type="button">+ New chat</button>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-title">Sessions</div>
+        <div id="session-list" class="session-list">
+          <div class="empty-state">Loading…</div>
+        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-title">Settings</div>
+        <form id="settings-form" class="settings">
+          <label>
+            <span>Model</span>
+            <input type="text" name="model" autocomplete="off" />
+          </label>
+          <label>
+            <span>Base URL</span>
+            <input type="text" name="base_url" autocomplete="off" />
+          </label>
+          <label>
+            <span>Working dir</span>
+            <input type="text" name="cwd" autocomplete="off" />
+          </label>
+          <label class="toggle">
+            <input type="checkbox" name="allow_shell" />
+            <span>Allow shell commands</span>
+          </label>
+          <label class="toggle">
+            <input type="checkbox" name="allow_write" />
+            <span>Allow write/edit</span>
+          </label>
+          <button type="submit" class="btn-secondary">Save</button>
+        </form>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <span class="status-dot" id="status-dot"></span>
+          <span id="status-text">Ready</span>
+        </div>
+        <div class="topbar-right">
+          <button id="slash-btn" class="btn-ghost" type="button" title="Slash commands">/</button>
+          <button id="skills-btn" class="btn-ghost" type="button" title="Skills">★</button>
+          <button id="clear-btn" class="btn-ghost" type="button" title="Clear runtime state">⟲</button>
+        </div>
+      </header>
+
+      <section id="chat" class="chat">
+        <div id="welcome" class="welcome">
+          <h1>Claw Code</h1>
+          <p>Type a message below to start. Use the <code>/</code> button for slash commands or <code>★</code> for skills.</p>
+        </div>
+      </section>
+
+      <footer class="composer">
+        <div class="composer-inner">
+          <textarea
+            id="prompt-input"
+            placeholder="Send a message…  (Enter to send, Shift+Enter for newline)"
+            rows="1"
+            autocomplete="off"
+          ></textarea>
+          <button id="send-btn" type="button" class="btn-send" title="Send">Send</button>
+        </div>
+        <div class="composer-meta">
+          <span id="cwd-meta"></span>
+          <span id="usage-meta"></span>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <div id="palette" class="palette hidden">
+    <div class="palette-card">
+      <div class="palette-head">
+        <input
+          id="palette-search"
+          type="text"
+          placeholder="Filter…"
+          autocomplete="off"
+        />
+        <button class="btn-ghost" id="palette-close" type="button">✕</button>
+      </div>
+      <div id="palette-list" class="palette-list"></div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -56,6 +56,7 @@
 | 🆕 | **Tokenizer-Aware Context** | Cached tokenizer backends with heuristic fallback for `/context`, `/status`, and compaction |
 | 🆕 | **Prompt Budget Preflight** | Preflight prompt-length validation, token-budget reporting, and auto-compact/context collapse before backend failures |
 | 🆕 | **LSP Runtime** | Local LSP-style code intelligence for definitions, references, hover, symbols, call hierarchy, and diagnostics |
+| 🆕 | **Local Web GUI** | Browser-based chat UI via `python -m src.gui` — modern dark theme, slash command palette, session browser, settings panel |
 | 🆕 | **Daemon Commands** | Local `daemon start/ps/logs/attach/kill` wrapper over background agent sessions |
 | 🆕 | **Background Sessions** | Local `agent-bg`, `agent-ps`, `agent-logs`, `agent-attach`, and `agent-kill` flows |
 | 🆕 | **Testing Guide** | Comprehensive [TESTING_GUIDE.md](TESTING_GUIDE.md) with commands for every feature |
@@ -85,6 +86,7 @@ Built on the public porting workspace from [instructkr/claw-code](https://github
 |---------|-------------|
 | 🤖 **Agent Loop** | Full agentic coding loop with tool calling and iterative reasoning |
 | 💬 **Interactive Chat** | Multi-turn REPL via `agent-chat` with session continuity |
+| 🖥️ **Local Web GUI** | Browser-based chat UI launched with `python -m src.gui` — sessions browser, slash command palette, live settings |
 | 🧰 **Core Tools** | File read / write / edit, glob search, grep search, shell execution |
 | 🔌 **Plugin Runtime** | Manifest-based plugins with hooks, aliases, virtual tools, and tool blocking |
 | 🪆 **Nested Delegation** | Delegate subtasks to child agents with dependency-aware topological batching |
@@ -169,6 +171,7 @@ Built on the public porting workspace from [instructkr/claw-code](https://github
 - [x] Local workflow runtime with workflow list/get/run tools and CLI/slash flows
 - [x] Local remote trigger runtime with create/update/run flows and CLI/slash inspection
 - [x] Local managed git worktree runtime with live cwd switching and worktree CLI/slash flows
+- [x] Local web GUI (FastAPI + vanilla JS SPA) with chat, sessions browser, slash command palette, and live settings (`python -m src.gui`)
 - [x] Tokenizer-aware context accounting with cached tokenizer backends and heuristic fallback
 - [x] Plugin runtime: manifest discovery, hooks, aliases, virtual tools, tool blocking
 - [x] Plugin lifecycle hooks: resume, persist, delegate phases
@@ -245,7 +248,11 @@ claw-code/
 │   ├── commands.py               # Mirrored command inventory
 │   ├── tools.py                  # Mirrored tool inventory
 │   ├── runtime.py                # Mirrored runtime facade
-│   └── reference_data/           # Mirrored inventory snapshots
+│   ├── reference_data/           # Mirrored inventory snapshots
+│   └── gui/                      # Local web GUI (FastAPI + vanilla JS SPA)
+│       ├── __main__.py           # `python -m src.gui` entry point
+│       ├── server.py             # FastAPI app and JSON endpoints
+│       └── static/               # index.html, app.css, app.js
 └── tests/                        # Unit tests
     ├── test_agent_runtime.py
     ├── test_agent_context.py
@@ -709,6 +716,41 @@ Features:
 - Agent manager lineage tracking
 
 > See [TESTING_GUIDE.md](TESTING_GUIDE.md) **Section 20** for delegation testing commands.
+
+---
+
+## 🖥️ Local Web GUI
+
+If the terminal isn't your thing, launch the bundled browser GUI:
+
+```bash
+python3 -m src.gui --cwd . --allow-write --allow-shell
+```
+
+Your default browser opens to `http://127.0.0.1:8765` with a modern dark-themed chat UI.
+
+| Flag | Description |
+|------|-------------|
+| `--host <addr>` | Bind address (default `127.0.0.1`) |
+| `--port <n>` | Port to listen on (default `8765`) |
+| `--cwd <path>` | Workspace directory the agent operates in |
+| `--model <name>` | Override the model name |
+| `--base-url <url>` | Override the OpenAI-compatible API base URL |
+| `--api-key <key>` | API key for the model server |
+| `--session-dir <path>` | Where saved sessions live |
+| `--allow-write` | Allow file write/edit tools |
+| `--allow-shell` | Allow shell execution |
+| `--no-browser` | Don't auto-open a browser tab |
+
+The GUI surfaces:
+
+- multi-turn chat with tool-call cards (collapsible JSON args + results)
+- saved sessions sidebar with one-click resume
+- slash command and skill pickers (`/` and `★` buttons, or `Cmd/Ctrl+K`)
+- live settings panel (model, base URL, working dir, permissions)
+- usage / cost meta in the composer footer
+
+> **Note:** The GUI uses [FastAPI](https://fastapi.tiangolo.com/) and [Uvicorn](https://www.uvicorn.org/) under the hood. These get installed automatically if you install the package via `pip install -e .`. The core Python agent runtime itself remains dependency-free.
 
 ---
 
