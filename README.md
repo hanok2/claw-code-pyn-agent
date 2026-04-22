@@ -72,6 +72,7 @@
 | 🆕 | **GUI Accounts View** | New **Accounts** tab — discover profiles from `.claude/account.json`, log in by name or with an ephemeral identity, view login/logout history; persists into `AccountRuntime` state |
 | 🆕 | **GUI Remote Profiles** | New **Remote** tab — discover remote/SSH/teleport/direct-connect/deep-link profiles from `.claw-remote.json` etc., connect by name or ephemeral target, view connect/disconnect history |
 | 🆕 | **GUI MCP Servers** | New **MCP** tab — list discovered servers/resources/tools from `.claw-mcp.json`/`.mcp.json`, read inline + stdio resources, call tools with custom JSON args; "Probe stdio servers" toggle controls subprocess cost |
+| 🆕 | **GUI Plugins View** | New **Plugins** tab — list manifests from `.claw-plugin/plugin.json`, `.codex-plugin/plugin.json`, and `plugins/*/plugin.json` with their tools, virtual tools, aliases, blocks, and lifecycle hooks |
 | 🆕 | **Daemon Commands** | Local `daemon start/ps/logs/attach/kill` wrapper over background agent sessions |
 | 🆕 | **Background Sessions** | Local `agent-bg`, `agent-ps`, `agent-logs`, `agent-attach`, and `agent-kill` flows |
 | 🆕 | **Testing Guide** | Comprehensive [TESTING_GUIDE.md](TESTING_GUIDE.md) with commands for every feature |

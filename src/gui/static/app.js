@@ -106,6 +106,8 @@ const els = {
   mcpTools: $("#mcp-tools"),
   mcpRefresh: $("#mcp-refresh"),
   mcpIncludeRemote: $("#mcp-include-remote"),
+  pluginsGrid: $("#plugins-grid"),
+  pluginsRefresh: $("#plugins-refresh"),
 };
 
 const BgState = { current: null, status: null };
@@ -904,6 +906,50 @@ function setView(view) {
   if (view === "account") loadAccount();
   if (view === "remote") loadRemote();
   if (view === "mcp") loadMcp();
+  if (view === "plugins") loadPlugins();
+}
+
+// ---------------------------------------------------------------------------
+// Plugins view
+// ---------------------------------------------------------------------------
+async function loadPlugins() {
+  try {
+    const data = await apiGet("/api/plugins");
+    els.pluginsGrid.innerHTML = "";
+    if (!data.manifests.length) {
+      els.pluginsGrid.innerHTML = `<div class="empty-state">No plugin manifests found.<br/>Looked for <code>.claw-plugin/plugin.json</code>, <code>.codex-plugin/plugin.json</code>, and <code>plugins/*/plugin.json</code>.</div>`;
+      return;
+    }
+    for (const m of data.manifests) {
+      const card = document.createElement("div");
+      card.className = "skill-card";
+      const hookRows = [
+        ["before_prompt", m.before_prompt],
+        ["after_turn", m.after_turn],
+        ["on_resume", m.on_resume],
+        ["before_persist", m.before_persist],
+        ["before_delegate", m.before_delegate],
+        ["after_delegate", m.after_delegate],
+      ].filter(([, v]) => v).map(
+        ([k, v]) => `<span class="skill-meta-pill">${k}: ${escapeHtml(String(v).slice(0, 40))}</span>`
+      ).join("");
+      card.innerHTML = `
+        <span class="skill-name">${escapeHtml(m.name)}${m.version ? ` <small style="color:var(--text-muted)">v${escapeHtml(m.version)}</small>` : ""}</span>
+        <span class="skill-desc">${escapeHtml(m.description || "")}</span>
+        <span class="skill-when">${escapeHtml(m.path)}</span>
+        <div class="skill-meta">
+          ${(m.tool_names || []).map((t) => `<span class="skill-meta-pill">tool: ${escapeHtml(t)}</span>`).join("")}
+          ${(m.virtual_tools || []).map((t) => `<span class="skill-meta-pill">virtual: ${escapeHtml(t.name)}</span>`).join("")}
+          ${(m.tool_aliases || []).map((a) => `<span class="skill-meta-pill">alias: ${escapeHtml(a.name)}</span>`).join("")}
+          ${(m.blocked_tools || []).map((t) => `<span class="skill-meta-pill" style="color:var(--error)">blocked: ${escapeHtml(t)}</span>`).join("")}
+          ${hookRows}
+        </div>
+      `;
+      els.pluginsGrid.appendChild(card);
+    }
+  } catch (e) {
+    setStatus("error", `plugins: ${e.message}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1825,6 +1871,7 @@ function bind() {
   if (els.remoteDisconnect) els.remoteDisconnect.addEventListener("click", disconnectRemote);
   if (els.mcpRefresh) els.mcpRefresh.addEventListener("click", loadMcp);
   if (els.mcpIncludeRemote) els.mcpIncludeRemote.addEventListener("change", loadMcp);
+  if (els.pluginsRefresh) els.pluginsRefresh.addEventListener("click", loadPlugins);
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !els.palette.classList.contains("hidden")) {
       closePalette();

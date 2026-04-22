@@ -172,6 +172,7 @@
             <button class="view-tab" data-view="account" type="button">Accounts</button>
             <button class="view-tab" data-view="remote" type="button">Remote</button>
             <button class="view-tab" data-view="mcp" type="button">MCP</button>
+            <button class="view-tab" data-view="plugins" type="button">Plugins</button>
           </div>
         </div>
         <div class="topbar-right">
@@ -204,6 +205,14 @@
           <span id="usage-meta"></span>
         </div>
       </footer>
+
+      <section id="plugins-view" class="tasks-view view" data-view-name="plugins" hidden>
+        <div class="tasks-toolbar">
+          <h2>Plugins</h2>
+          <button id="plugins-refresh" class="btn-ghost" type="button" title="Refresh">⟳</button>
+        </div>
+        <div id="plugins-grid" class="skills-grid"></div>
+      </section>
 
       <section id="mcp-view" class="tasks-view view" data-view-name="mcp" hidden>
         <div class="tasks-toolbar">

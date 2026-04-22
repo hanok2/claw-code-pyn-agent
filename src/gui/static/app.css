@@ -731,6 +731,7 @@ body[data-view="skills"] [data-view-name]:not([data-view-name="skills"]) { displ
 body[data-view="account"] [data-view-name]:not([data-view-name="account"]) { display: none !important; }
 body[data-view="remote"] [data-view-name]:not([data-view-name="remote"]) { display: none !important; }
 body[data-view="mcp"] [data-view-name]:not([data-view-name="mcp"]) { display: none !important; }
+body[data-view="plugins"] [data-view-name]:not([data-view-name="plugins"]) { display: none !important; }
 
 /* Tasks panel */
 .tasks-view {
