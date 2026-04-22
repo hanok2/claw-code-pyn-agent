@@ -57,6 +57,28 @@
 | 🆕 | **Prompt Budget Preflight** | Preflight prompt-length validation, token-budget reporting, and auto-compact/context collapse before backend failures |
 | 🆕 | **LSP Runtime** | Local LSP-style code intelligence for definitions, references, hover, symbols, call hierarchy, and diagnostics |
 | 🆕 | **Local Web GUI** | Browser-based chat UI via `python -m src.gui` — modern dark theme, slash command palette, session browser, settings panel |
+| 🆕 | **Pasted-Content Refs** | Pastes ≥500 chars into the GUI composer collapse to `[Pasted text #N +M lines]` chips and re-expand server-side before the agent runs |
+| 🆕 | **GUI Runtime Knobs** | Settings panel exposes temperature, per-turn timeout, streaming toggle, and max-turns — all round-tripped live through `/api/state` |
+| 🆕 | **GUI Budgets & Limits** | Advanced settings disclosure for every `BudgetConfig` field: cost ceiling, token budgets, tool/model call caps, delegated task cap, session turn cap — blank input clears the limit |
+| 🆕 | **GUI System Prompt & Schema** | Custom / append / override system prompts and a structured-output JSON schema editor (with strict toggle) live-editable in the settings panel |
+| 🆕 | **GUI Context Management** | Auto-snip / auto-compact thresholds, compact-preserve count, CLAUDE.md discovery toggle, and additional working directories — all editable from the settings panel and the new `--auto-snip-threshold` / `--auto-compact-threshold` / `--add-dir` flags |
+| 🆕 | **GUI Tasks View** | Browse, create, start, complete, and cancel local tasks from a new **Tasks** tab; mutations call straight into `TaskRuntime` so completing a task auto-unblocks dependents just like the slash-command path |
+| 🆕 | **GUI Plan View** | Edit the local porting plan (steps + explanation + per-step status/priority) from a new **Plan** tab; saves go through `PlanRuntime.update_plan` and optionally sync to the task list |
+| 🆕 | **GUI Memory View** | Browse, edit, create, and delete the discovered `CLAUDE.md` / `.claude/rules/*.md` memory files from a new **Memory** tab; writes are sandboxed to the workspace + `~/.claude` |
+| 🆕 | **GUI File History View** | New **History** tab aggregates `file_history` entries from every saved session (newest first) — one row per shell run / file edit / nested agent call with snapshot ids and changed paths |
+| 🆕 | **GUI Background Sessions** | New **Background** tab lists detached `agent-bg` runs (running/exited/completed/failed), shows live logs, and lets you kill a running session — same `BackgroundSessionRuntime` the CLI uses |
+| 🆕 | **GUI Worktree View** | New **Worktree** tab — show status & history, create a managed `git worktree` (auto-switches the agent's cwd), and exit it (keep or remove); state survives reload via `WorktreeRuntime` |
+| 🆕 | **GUI Skills Marketplace** | New **Skills** tab — card grid of every bundled skill with description, when-to-use, aliases, and allowed tools; "Use in chat" button drops the invocation into the composer |
+| 🆕 | **GUI Accounts View** | New **Accounts** tab — discover profiles from `.claude/account.json`, log in by name or with an ephemeral identity, view login/logout history; persists into `AccountRuntime` state |
+| 🆕 | **GUI Remote Profiles** | New **Remote** tab — discover remote/SSH/teleport/direct-connect/deep-link profiles from `.claw-remote.json` etc., connect by name or ephemeral target, view connect/disconnect history |
+| 🆕 | **GUI MCP Servers** | New **MCP** tab — list discovered servers/resources/tools from `.claw-mcp.json`/`.mcp.json`, read inline + stdio resources, call tools with custom JSON args; "Probe stdio servers" toggle controls subprocess cost |
+| 🆕 | **GUI Plugins View** | New **Plugins** tab — list manifests from `.claw-plugin/plugin.json`, `.codex-plugin/plugin.json`, and `plugins/*/plugin.json` with their tools, virtual tools, aliases, blocks, and lifecycle hooks |
+| 🆕 | **GUI Ask-User Queue** | New **Ask** tab — preload answers (exact or contains match), browse the queue and history, and clear past entries; the agent's `Ask` tool consumes them straight from `.port_sessions/ask_user_runtime.json` |
+| 🆕 | **GUI Workflows View** | New **Workflows** tab — list discovered workflow definitions from `.claw-workflows.json`, trigger a recorded run with custom JSON arguments, browse run history |
+| 🆕 | **GUI Search View** | New **Search** tab — discover providers from `.claw-search.json`/`.claude/search.json`, activate one, and run live SearXNG/Brave/Tavily queries straight from the browser |
+| 🆕 | **GUI Remote Triggers** | New **Triggers** tab — list/create/run remote triggers (manifest-defined or local), record run history; mirrors `RemoteTriggerRuntime` exactly |
+| 🆕 | **GUI Teams View** | New **Teams** tab — create teams with members, send messages between them, view full message history; persisted via `TeamRuntime` |
+| 🆕 | **GUI Diagnostics Tab** | New **Diag** tab — render the existing markdown reports (`summary`, `manifest`, `parity-audit`, `setup-report`, `command-graph`, `tool-pool`, `bootstrap-graph`) on demand without shelling out |
 | 🆕 | **Daemon Commands** | Local `daemon start/ps/logs/attach/kill` wrapper over background agent sessions |
 | 🆕 | **Background Sessions** | Local `agent-bg`, `agent-ps`, `agent-logs`, `agent-attach`, and `agent-kill` flows |
 | 🆕 | **Testing Guide** | Comprehensive [TESTING_GUIDE.md](TESTING_GUIDE.md) with commands for every feature |
@@ -740,7 +762,33 @@ Your default browser opens to `http://127.0.0.1:8765` with a modern dark-themed 
 | `--session-dir <path>` | Where saved sessions live |
 | `--allow-write` | Allow file write/edit tools |
 | `--allow-shell` | Allow shell execution |
+| `--temperature <f>` | Sampling temperature (default `0.0`) |
+| `--timeout-seconds <f>` | Per-turn model timeout in seconds (default `120`) |
+| `--stream` | Enable streaming model responses |
+| `--max-turns <n>` | Per-run turn limit (default `12`) |
+| `--max-budget-usd <f>` | Abort the run if total cost exceeds this |
+| `--max-total-tokens <n>` | Token budget across prompt + completion |
+| `--max-input-tokens <n>` | Input-token cap per call |
+| `--max-output-tokens <n>` | Output-token cap per call |
+| `--max-reasoning-tokens <n>` | Reasoning-token cap per call |
+| `--max-tool-calls <n>` | Hard cap on tool invocations per run |
+| `--max-model-calls <n>` | Hard cap on model invocations per run |
+| `--max-delegated-tasks <n>` | Cap on nested delegated agents |
+| `--max-session-turns <n>` | Cap across resumed sessions |
+| `--system-prompt <s>` | Replace the rendered system prompt body |
+| `--append-system-prompt <s>` | Append text to the rendered system prompt |
+| `--override-system-prompt <s>` | Skip the default system prompt entirely and use this |
+| `--response-schema-file <path>` | Load a structured-output schema from a JSON file |
+| `--response-schema-name <s>` | Name the schema (default `response`) |
+| `--response-schema-strict` | Reject responses that don't match the schema |
+| `--auto-snip-threshold <n>` | Token threshold above which old messages are auto-snipped |
+| `--auto-compact-threshold <n>` | Token threshold above which the conversation is auto-compacted |
+| `--compact-preserve-messages <n>` | Number of recent messages preserved during a compact (default `4`) |
+| `--disable-claude-md` | Skip discovery of `CLAUDE.md` files |
+| `--add-dir <path>` | Additional working directory the agent may operate in (repeatable) |
 | `--no-browser` | Don't auto-open a browser tab |
+
+Every budget flag above is also editable at runtime through the **Budgets & limits** disclosure in the settings panel — leave a field blank to clear the limit, type a number to set it.
 
 The GUI surfaces:
 
@@ -749,6 +797,19 @@ The GUI surfaces:
 - slash command and skill pickers (`/` and `★` buttons, or `Cmd/Ctrl+K`)
 - live settings panel (model, base URL, working dir, permissions)
 - usage / cost meta in the composer footer
+- pasted-content collapsing — see below
+- runtime knobs: temperature, timeout, streaming toggle, max turns
+- a **Tasks** tab in the topbar — list / create / start / complete / cancel against `.port_sessions/task_runtime.json`
+
+### Paste large content
+
+Paste anything ≥500 characters into the composer (a logfile, a stack trace, an entire file) and the GUI replaces it with a short reference like `[Pasted text #1 +42 lines]`, plus a chip above the textarea showing `📎 [Pasted text #1] · 42 lines · 1894 chars · ✕`.
+
+- The reference stays editable — type around it, delete it, or duplicate it; whatever survives at send-time is what gets expanded.
+- The full content is held in the browser only and shipped with the next `/api/chat` request as `pasted_contents`.
+- The server re-splices the original text back in before the agent runs, so the model sees the full payload — never the placeholder.
+- The chip's `✕` button drops both the content stash and any inline ref so it can't accidentally come along.
+- The stash clears after every successful send and when you click `+ New chat`.
 
 > **Note:** The GUI uses [FastAPI](https://fastapi.tiangolo.com/) and [Uvicorn](https://www.uvicorn.org/) under the hood. These get installed automatically if you install the package via `pip install -e .`. The core Python agent runtime itself remains dependency-free.
 

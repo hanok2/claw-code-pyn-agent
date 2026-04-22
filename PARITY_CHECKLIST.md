@@ -273,7 +273,7 @@ Missing:
 - [ ] Team memory sync (`services/teamMemorySync/`)
 - [ ] Away summary generation (`services/awaySummary.ts`)
 - [ ] Token estimation service (`services/tokenEstimation.ts`)
-- [ ] Paste content storage and reference parsing (`history.ts`)
+- [x] Paste content storage and reference parsing (`history.ts`) → `src/paste_refs.py` (parse/format/expand `[Pasted text #N +M lines]`); GUI composer auto-collapses pastes ≥500 chars and ships them via `pasted_contents` for server-side expansion before `agent.run`
 - [ ] Image paste handling
 
 ## 5. Slash Commands
