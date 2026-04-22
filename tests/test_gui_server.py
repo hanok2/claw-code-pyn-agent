@@ -276,6 +276,16 @@ class GuiServerTests(unittest.TestCase):
             self.assertTrue(skills)
             names = {entry['name'] for entry in skills}
             self.assertIn('simplify', names)
+            # Default response is user-invocable only.
+            self.assertTrue(all(entry['user_invocable'] for entry in skills))
+
+    def test_skills_can_include_internal(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            client, _ = _build_client(Path(d))
+            user_only = client.get('/api/skills').json()
+            with_internal = client.get('/api/skills?include_internal=true').json()
+            # `include_internal=true` returns at least as many entries.
+            self.assertGreaterEqual(len(with_internal), len(user_only))
 
     def test_chat_runs_local_slash_command(self) -> None:
         with tempfile.TemporaryDirectory() as d:

@@ -86,6 +86,9 @@ const els = {
   worktreeExitAction: $("#worktree-exit-action"),
   worktreeDiscard: $("#worktree-discard"),
   worktreeHistory: $("#worktree-history"),
+  skillsGrid: $("#skills-grid"),
+  skillsRefresh: $("#skills-refresh"),
+  skillsIncludeInternal: $("#skills-include-internal"),
 };
 
 const BgState = { current: null, status: null };
@@ -880,6 +883,58 @@ function setView(view) {
   if (view === "history") loadHistory();
   if (view === "bg") loadBackgroundList();
   if (view === "worktree") loadWorktree();
+  if (view === "skills") loadSkillsView();
+}
+
+// ---------------------------------------------------------------------------
+// Skills view
+// ---------------------------------------------------------------------------
+async function loadSkillsView() {
+  try {
+    const include = els.skillsIncludeInternal.checked ? "true" : "false";
+    const skills = await apiGet(`/api/skills?include_internal=${include}`);
+    State.skills = skills;
+    els.skillsGrid.innerHTML = "";
+    if (!skills.length) {
+      els.skillsGrid.innerHTML = `<div class="empty-state">No skills available.</div>`;
+      return;
+    }
+    for (const skill of skills) {
+      const card = document.createElement("div");
+      card.className = "skill-card";
+      if (!skill.user_invocable) card.classList.add("internal");
+      card.innerHTML = `
+        <span class="skill-name">${escapeHtml(skill.name)}</span>
+        <span class="skill-desc">${escapeHtml(skill.description || "")}</span>
+        ${skill.when_to_use ? `<span class="skill-when">When: ${escapeHtml(skill.when_to_use)}</span>` : ""}
+        <div class="skill-meta">
+          ${(skill.aliases || []).map((a) => `<span class="skill-meta-pill">alias: ${escapeHtml(a)}</span>`).join("")}
+          ${(skill.allowed_tools || []).map((t) => `<span class="skill-meta-pill">tool: ${escapeHtml(t)}</span>`).join("")}
+        </div>
+        <div class="skill-actions">
+          <button data-act="use">Use in chat</button>
+          <button data-act="copy">Copy name</button>
+        </div>
+      `;
+      card.querySelector('[data-act="use"]').addEventListener("click", () => {
+        if (!skill.user_invocable) {
+          setStatus("error", "Internal skills can't be invoked from the composer.");
+          return;
+        }
+        setView("chat");
+        els.input.value = `Use the ${skill.name} skill`;
+        autoSizeInput();
+        els.input.focus();
+      });
+      card.querySelector('[data-act="copy"]').addEventListener("click", () => {
+        navigator.clipboard?.writeText(skill.name);
+        setStatus("ready", `Copied ${skill.name}`);
+      });
+      els.skillsGrid.appendChild(card);
+    }
+  } catch (e) {
+    setStatus("error", `skills: ${e.message}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1403,6 +1458,9 @@ function bind() {
   if (els.worktreeRefresh) els.worktreeRefresh.addEventListener("click", loadWorktree);
   if (els.worktreeEnterForm) els.worktreeEnterForm.addEventListener("submit", enterWorktree);
   if (els.worktreeExit) els.worktreeExit.addEventListener("click", exitWorktree);
+  if (els.skillsRefresh) els.skillsRefresh.addEventListener("click", loadSkillsView);
+  if (els.skillsIncludeInternal)
+    els.skillsIncludeInternal.addEventListener("change", loadSkillsView);
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !els.palette.classList.contains("hidden")) {
       closePalette();

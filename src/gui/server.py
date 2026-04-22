@@ -495,7 +495,7 @@ def create_app(state: AgentState) -> FastAPI:
         return commands
 
     @app.get('/api/skills')
-    async def list_skills() -> list[dict[str, Any]]:
+    async def list_skills(include_internal: bool = False) -> list[dict[str, Any]]:
         return [
             {
                 'name': skill.name,
@@ -503,9 +503,10 @@ def create_app(state: AgentState) -> FastAPI:
                 'when_to_use': skill.when_to_use,
                 'aliases': list(skill.aliases),
                 'allowed_tools': list(skill.allowed_tools),
+                'user_invocable': skill.user_invocable,
             }
             for skill in get_bundled_skills()
-            if skill.user_invocable
+            if include_internal or skill.user_invocable
         ]
 
     # ------------- sessions --------------------------------------------------

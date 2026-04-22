@@ -727,6 +727,7 @@ body[data-view="memory"] [data-view-name]:not([data-view-name="memory"]) { displ
 body[data-view="history"] [data-view-name]:not([data-view-name="history"]) { display: none !important; }
 body[data-view="bg"] [data-view-name]:not([data-view-name="bg"]) { display: none !important; }
 body[data-view="worktree"] [data-view-name]:not([data-view-name="worktree"]) { display: none !important; }
+body[data-view="skills"] [data-view-name]:not([data-view-name="skills"]) { display: none !important; }
 
 /* Tasks panel */
 .tasks-view {
@@ -1013,6 +1014,44 @@ body[data-view="worktree"] [data-view-name]:not([data-view-name="worktree"]) { d
   font-size: 12px;
 }
 .worktree-history-title { margin: 6px 0 0; font-size: 13px; }
+
+/* Skills view */
+.skills-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 10px;
+}
+.skill-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.skill-card.internal { opacity: 0.6; }
+.skill-name { font-weight: 500; color: var(--accent); font-family: var(--font-mono); font-size: 13px; }
+.skill-desc { font-size: 12px; color: var(--text); }
+.skill-when { font-size: 11px; color: var(--text-dim); }
+.skill-meta { font-size: 10px; color: var(--text-muted); display: flex; flex-wrap: wrap; gap: 4px; }
+.skill-meta-pill {
+  background: var(--bg-soft);
+  border-radius: 999px;
+  padding: 2px 7px;
+}
+.skill-actions { margin-top: auto; display: flex; gap: 6px; }
+.skill-actions button {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.skill-actions button:hover { color: var(--text); border-color: var(--accent); }
 
 /* Palette */
 .palette {
