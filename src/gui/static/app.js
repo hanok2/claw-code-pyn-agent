@@ -71,7 +71,17 @@ const els = {
   historyList: $("#history-list"),
   historyMeta: $("#history-meta"),
   historyRefresh: $("#history-refresh"),
+  bgList: $("#bg-list"),
+  bgCounts: $("#bg-counts"),
+  bgRefresh: $("#bg-refresh"),
+  bgCurrent: $("#bg-current"),
+  bgFlags: $("#bg-flags"),
+  bgKill: $("#bg-kill"),
+  bgLogs: $("#bg-logs"),
+  bgLogsRefresh: $("#bg-logs-refresh"),
 };
+
+const BgState = { current: null, status: null };
 
 const MemoryState = { current: null, writable: false, dirty: false };
 
@@ -861,6 +871,91 @@ function setView(view) {
   if (view === "plan") loadPlan();
   if (view === "memory") loadMemory();
   if (view === "history") loadHistory();
+  if (view === "bg") loadBackgroundList();
+}
+
+// ---------------------------------------------------------------------------
+// Background sessions view
+// ---------------------------------------------------------------------------
+function renderBgList(payload) {
+  const counts = payload.counts || {};
+  els.bgCounts.innerHTML = "";
+  for (const status of ["running", "exited", "completed", "failed"]) {
+    const n = counts[status] || 0;
+    if (!n) continue;
+    const chip = document.createElement("span");
+    chip.className = "tasks-count-chip";
+    chip.innerHTML = `<strong>${n}</strong>${status}`;
+    els.bgCounts.appendChild(chip);
+  }
+  els.bgList.innerHTML = "";
+  if (!payload.sessions.length) {
+    els.bgList.innerHTML = `<div class="empty-state">No background sessions yet.<br/>Launch one with <code>agent-bg</code>.</div>`;
+    return;
+  }
+  for (const sess of payload.sessions) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "memory-item";
+    if (BgState.current === sess.background_id) btn.classList.add("active");
+    btn.innerHTML = `
+      <span class="memory-item-name">${escapeHtml(sess.background_id)} · ${escapeHtml(sess.status)}</span>
+      <span class="memory-item-path">${escapeHtml((sess.prompt || "(no prompt)").slice(0, 80))}</span>
+    `;
+    btn.addEventListener("click", () => openBackground(sess.background_id));
+    els.bgList.appendChild(btn);
+  }
+}
+
+async function loadBackgroundList() {
+  try {
+    renderBgList(await apiGet("/api/background"));
+  } catch (e) {
+    setStatus("error", `bg: ${e.message}`);
+  }
+}
+
+async function openBackground(id) {
+  BgState.current = id;
+  try {
+    const detail = await apiGet(`/api/background/${encodeURIComponent(id)}`);
+    BgState.status = detail.status;
+    els.bgCurrent.textContent = id;
+    const bits = [`status ${detail.status}`, `pid ${detail.pid}`, `model ${detail.model}`];
+    if (detail.exit_code != null) bits.push(`exit ${detail.exit_code}`);
+    if (detail.session_id) bits.push(`session ${detail.session_id.slice(0, 12)}`);
+    els.bgFlags.textContent = bits.join(" · ");
+    els.bgKill.disabled = detail.status !== "running";
+    els.bgLogsRefresh.disabled = false;
+    els.bgLogs.disabled = false;
+    await loadBackgroundLogs();
+    await loadBackgroundList();
+  } catch (e) {
+    setStatus("error", `bg: ${e.message}`);
+  }
+}
+
+async function loadBackgroundLogs() {
+  if (!BgState.current) return;
+  try {
+    const data = await apiGet(`/api/background/${encodeURIComponent(BgState.current)}/logs`);
+    els.bgLogs.value = data.content || "";
+    els.bgLogs.scrollTop = els.bgLogs.scrollHeight;
+  } catch (e) {
+    setStatus("error", `bg logs: ${e.message}`);
+  }
+}
+
+async function killBackground() {
+  if (!BgState.current) return;
+  if (!confirm(`Kill background session ${BgState.current}?`)) return;
+  try {
+    await apiPost(`/api/background/${encodeURIComponent(BgState.current)}/kill`, {});
+    setStatus("ready", "Killed");
+    await openBackground(BgState.current);
+  } catch (e) {
+    setStatus("error", `bg: ${e.message}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1209,6 +1304,9 @@ function bind() {
   if (els.memoryRefresh) els.memoryRefresh.addEventListener("click", loadMemory);
   if (els.memoryNew) els.memoryNew.addEventListener("click", newMemoryFile);
   if (els.historyRefresh) els.historyRefresh.addEventListener("click", loadHistory);
+  if (els.bgRefresh) els.bgRefresh.addEventListener("click", loadBackgroundList);
+  if (els.bgKill) els.bgKill.addEventListener("click", killBackground);
+  if (els.bgLogsRefresh) els.bgLogsRefresh.addEventListener("click", loadBackgroundLogs);
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !els.palette.classList.contains("hidden")) {
       closePalette();

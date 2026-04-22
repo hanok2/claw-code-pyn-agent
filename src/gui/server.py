@@ -39,6 +39,7 @@ from ..session_store import (
     StoredAgentSession,
     load_agent_session,
 )
+from .background_routes import create_background_router
 from .memory_routes import MemoryPathContext, create_memory_router
 from .plans_routes import create_plans_router
 from .tasks_routes import create_tasks_router
@@ -444,6 +445,7 @@ def create_app(state: AgentState) -> FastAPI:
             )
         )
     )
+    app.include_router(create_background_router(lambda: state.cwd))
 
     # ------------- static + index ------------------------------------------
     app.mount(

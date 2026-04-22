@@ -715,28 +715,17 @@ body {
   color: var(--accent);
 }
 
-/* View routing — only the surfaces matching data-view stay visible.
-   Each rule hides every tab-specific surface that isn't the active one. */
-body[data-view="chat"] .view-tasks,
-body[data-view="chat"] .view-plan,
-body[data-view="chat"] .view-memory,
-body[data-view="chat"] .view-history { display: none !important; }
-body[data-view="tasks"] .view-chat,
-body[data-view="tasks"] .view-plan,
-body[data-view="tasks"] .view-memory,
-body[data-view="tasks"] .view-history { display: none !important; }
-body[data-view="plan"] .view-chat,
-body[data-view="plan"] .view-tasks,
-body[data-view="plan"] .view-memory,
-body[data-view="plan"] .view-history { display: none !important; }
-body[data-view="memory"] .view-chat,
-body[data-view="memory"] .view-tasks,
-body[data-view="memory"] .view-plan,
-body[data-view="memory"] .view-history { display: none !important; }
-body[data-view="history"] .view-chat,
-body[data-view="history"] .view-tasks,
-body[data-view="history"] .view-plan,
-body[data-view="history"] .view-memory { display: none !important; }
+/* View routing — every tab-specific surface gets `data-view-name` set in
+   markup. JS toggles `body[data-view=...]`, and the rule below hides any
+   surface whose name doesn't match. Only one negative rule per tab is
+   needed regardless of how many other tabs exist, and the original
+   `display:` from the surface's own rule is preserved when it's visible. */
+body[data-view="chat"] [data-view-name]:not([data-view-name="chat"]) { display: none !important; }
+body[data-view="tasks"] [data-view-name]:not([data-view-name="tasks"]) { display: none !important; }
+body[data-view="plan"] [data-view-name]:not([data-view-name="plan"]) { display: none !important; }
+body[data-view="memory"] [data-view-name]:not([data-view-name="memory"]) { display: none !important; }
+body[data-view="history"] [data-view-name]:not([data-view-name="history"]) { display: none !important; }
+body[data-view="bg"] [data-view-name]:not([data-view-name="bg"]) { display: none !important; }
 
 /* Tasks panel */
 .tasks-view {

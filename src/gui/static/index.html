@@ -166,6 +166,7 @@
             <button class="view-tab" data-view="plan" type="button">Plan</button>
             <button class="view-tab" data-view="memory" type="button">Memory</button>
             <button class="view-tab" data-view="history" type="button">History</button>
+            <button class="view-tab" data-view="bg" type="button">Background</button>
           </div>
         </div>
         <div class="topbar-right">
@@ -175,14 +176,14 @@
         </div>
       </header>
 
-      <section id="chat" class="chat view view-chat">
+      <section id="chat" class="chat view" data-view-name="chat">
         <div id="welcome" class="welcome">
           <h1>Claw Code</h1>
           <p>Type a message below to start. Use the <code>/</code> button for slash commands or <code>★</code> for skills.</p>
         </div>
       </section>
 
-      <footer id="composer" class="composer view-chat">
+      <footer id="composer" class="composer" data-view-name="chat">
         <div id="paste-chips" class="paste-chips" hidden></div>
         <div class="composer-inner">
           <textarea
@@ -199,7 +200,29 @@
         </div>
       </footer>
 
-      <section id="history-view" class="tasks-view view view-history" hidden>
+      <section id="bg-view" class="tasks-view view" data-view-name="bg" hidden>
+        <div class="tasks-toolbar">
+          <h2>Background sessions</h2>
+          <button id="bg-refresh" class="btn-ghost" type="button" title="Refresh">⟳</button>
+        </div>
+        <div id="bg-counts" class="tasks-counts"></div>
+        <div class="memory-layout">
+          <aside id="bg-list" class="memory-list">
+            <div class="empty-state">Loading…</div>
+          </aside>
+          <div class="memory-editor">
+            <div class="memory-editor-head">
+              <span id="bg-current" class="memory-current">Pick a background session</span>
+              <span id="bg-flags" class="memory-flags"></span>
+              <button id="bg-kill" class="btn-ghost" type="button" disabled>Kill</button>
+              <button id="bg-logs-refresh" class="btn-ghost" type="button" disabled>Reload logs</button>
+            </div>
+            <textarea id="bg-logs" rows="20" placeholder="Logs will appear here…" readonly disabled></textarea>
+          </div>
+        </div>
+      </section>
+
+      <section id="history-view" class="tasks-view view" data-view-name="history" hidden>
         <div class="tasks-toolbar">
           <h2>File history</h2>
           <button id="history-refresh" class="btn-ghost" type="button" title="Refresh">⟳</button>
@@ -210,7 +233,7 @@
         </div>
       </section>
 
-      <section id="memory-view" class="tasks-view view view-memory" hidden>
+      <section id="memory-view" class="tasks-view view" data-view-name="memory" hidden>
         <div class="tasks-toolbar">
           <h2>Memory</h2>
           <div style="display:flex; gap:6px;">
@@ -234,7 +257,7 @@
         </div>
       </section>
 
-      <section id="plan-view" class="tasks-view view view-plan" hidden>
+      <section id="plan-view" class="tasks-view view" data-view-name="plan" hidden>
         <div class="tasks-toolbar">
           <h2>Plan</h2>
           <div style="display:flex; gap:6px;">
@@ -258,7 +281,7 @@
         </div>
       </section>
 
-      <section id="tasks-view" class="tasks-view view view-tasks" hidden>
+      <section id="tasks-view" class="tasks-view view" data-view-name="tasks" hidden>
         <div class="tasks-toolbar">
           <h2>Tasks</h2>
           <button id="tasks-refresh" class="btn-ghost" type="button" title="Refresh">⟳</button>
