@@ -165,6 +165,7 @@
             <button class="view-tab" data-view="tasks" type="button">Tasks</button>
             <button class="view-tab" data-view="plan" type="button">Plan</button>
             <button class="view-tab" data-view="memory" type="button">Memory</button>
+            <button class="view-tab" data-view="history" type="button">History</button>
           </div>
         </div>
         <div class="topbar-right">
@@ -197,6 +198,17 @@
           <span id="usage-meta"></span>
         </div>
       </footer>
+
+      <section id="history-view" class="tasks-view view view-history" hidden>
+        <div class="tasks-toolbar">
+          <h2>File history</h2>
+          <button id="history-refresh" class="btn-ghost" type="button" title="Refresh">⟳</button>
+        </div>
+        <div id="history-meta" class="plan-meta"></div>
+        <div id="history-list" class="history-list">
+          <div class="empty-state">Loading…</div>
+        </div>
+      </section>
 
       <section id="memory-view" class="tasks-view view view-memory" hidden>
         <div class="tasks-toolbar">

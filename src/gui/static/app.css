@@ -715,19 +715,28 @@ body {
   color: var(--accent);
 }
 
-/* View routing — only the surfaces matching data-view stay visible. */
+/* View routing — only the surfaces matching data-view stay visible.
+   Each rule hides every tab-specific surface that isn't the active one. */
 body[data-view="chat"] .view-tasks,
 body[data-view="chat"] .view-plan,
-body[data-view="chat"] .view-memory { display: none !important; }
+body[data-view="chat"] .view-memory,
+body[data-view="chat"] .view-history { display: none !important; }
 body[data-view="tasks"] .view-chat,
 body[data-view="tasks"] .view-plan,
-body[data-view="tasks"] .view-memory { display: none !important; }
+body[data-view="tasks"] .view-memory,
+body[data-view="tasks"] .view-history { display: none !important; }
 body[data-view="plan"] .view-chat,
 body[data-view="plan"] .view-tasks,
-body[data-view="plan"] .view-memory { display: none !important; }
+body[data-view="plan"] .view-memory,
+body[data-view="plan"] .view-history { display: none !important; }
 body[data-view="memory"] .view-chat,
 body[data-view="memory"] .view-tasks,
-body[data-view="memory"] .view-plan { display: none !important; }
+body[data-view="memory"] .view-plan,
+body[data-view="memory"] .view-history { display: none !important; }
+body[data-view="history"] .view-chat,
+body[data-view="history"] .view-tasks,
+body[data-view="history"] .view-plan,
+body[data-view="history"] .view-memory { display: none !important; }
 
 /* Tasks panel */
 .tasks-view {
@@ -957,6 +966,29 @@ body[data-view="memory"] .view-plan { display: none !important; }
   min-height: 320px;
 }
 .memory-editor textarea:focus { outline: none; border-color: var(--accent); }
+
+/* File history view */
+.history-list { display: flex; flex-direction: column; gap: 6px; }
+.history-row {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: 110px 90px 1fr 100px;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 12px;
+}
+.history-row.kind-shell { border-left: 3px solid var(--user); }
+.history-row.kind-file_change { border-left: 3px solid var(--accent); }
+.history-row.kind-Agent,
+.history-row.kind-delegate_agent { border-left: 3px solid var(--tool); }
+.history-row.error { border-left-color: var(--error); }
+.history-when { color: var(--text-muted); font-family: var(--font-mono); font-size: 11px; }
+.history-tool { color: var(--accent); font-weight: 500; }
+.history-detail { color: var(--text); word-break: break-all; }
+.history-session { color: var(--text-muted); font-size: 10px; font-family: var(--font-mono); text-align: right; }
 
 /* Palette */
 .palette {

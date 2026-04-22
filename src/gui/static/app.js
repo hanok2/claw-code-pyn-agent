@@ -68,6 +68,9 @@ const els = {
   memoryDelete: $("#memory-delete"),
   memoryRefresh: $("#memory-refresh"),
   memoryNew: $("#memory-new"),
+  historyList: $("#history-list"),
+  historyMeta: $("#history-meta"),
+  historyRefresh: $("#history-refresh"),
 };
 
 const MemoryState = { current: null, writable: false, dirty: false };
@@ -857,6 +860,53 @@ function setView(view) {
   if (view === "tasks") loadTasks();
   if (view === "plan") loadPlan();
   if (view === "memory") loadMemory();
+  if (view === "history") loadHistory();
+}
+
+// ---------------------------------------------------------------------------
+// File-history view
+// ---------------------------------------------------------------------------
+function describeHistoryEntry(entry) {
+  if (entry.changed_paths && entry.changed_paths.length)
+    return entry.changed_paths.join(", ");
+  if (entry.command) return entry.command;
+  if (entry.action) return entry.action;
+  if (entry.result_preview) return entry.result_preview;
+  return "(no detail)";
+}
+
+function renderHistory(payload) {
+  els.historyMeta.textContent = `${payload.total} entr${payload.total === 1 ? "y" : "ies"} (showing ${payload.returned})`;
+  els.historyList.innerHTML = "";
+  if (!payload.entries.length) {
+    els.historyList.innerHTML = `<div class="empty-state">No file history yet — make some edits via chat.</div>`;
+    return;
+  }
+  for (const entry of payload.entries) {
+    const row = document.createElement("div");
+    const kind = entry.history_kind || entry.action || "other";
+    row.className = `history-row kind-${kind}`;
+    if (entry.ok === false) row.classList.add("error");
+    const when = entry.timestamp
+      ? new Date(entry.timestamp).toLocaleString()
+      : "unknown time";
+    row.innerHTML = `
+      <span class="history-when">${escapeHtml(when)}</span>
+      <span class="history-tool">${escapeHtml(entry.tool_name || kind)}</span>
+      <span class="history-detail">${escapeHtml(describeHistoryEntry(entry))}</span>
+      <span class="history-session">${escapeHtml((entry.session_id || "").slice(0, 12))}</span>
+    `;
+    els.historyList.appendChild(row);
+  }
+}
+
+async function loadHistory() {
+  try {
+    const data = await apiGet("/api/file-history?limit=200");
+    renderHistory(data);
+  } catch (e) {
+    setStatus("error", `history: ${e.message}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1158,6 +1208,7 @@ function bind() {
   if (els.memoryDelete) els.memoryDelete.addEventListener("click", deleteMemory);
   if (els.memoryRefresh) els.memoryRefresh.addEventListener("click", loadMemory);
   if (els.memoryNew) els.memoryNew.addEventListener("click", newMemoryFile);
+  if (els.historyRefresh) els.historyRefresh.addEventListener("click", loadHistory);
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !els.palette.classList.contains("hidden")) {
       closePalette();

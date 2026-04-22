@@ -65,6 +65,7 @@
 | 🆕 | **GUI Tasks View** | Browse, create, start, complete, and cancel local tasks from a new **Tasks** tab; mutations call straight into `TaskRuntime` so completing a task auto-unblocks dependents just like the slash-command path |
 | 🆕 | **GUI Plan View** | Edit the local porting plan (steps + explanation + per-step status/priority) from a new **Plan** tab; saves go through `PlanRuntime.update_plan` and optionally sync to the task list |
 | 🆕 | **GUI Memory View** | Browse, edit, create, and delete the discovered `CLAUDE.md` / `.claude/rules/*.md` memory files from a new **Memory** tab; writes are sandboxed to the workspace + `~/.claude` |
+| 🆕 | **GUI File History View** | New **History** tab aggregates `file_history` entries from every saved session (newest first) — one row per shell run / file edit / nested agent call with snapshot ids and changed paths |
 | 🆕 | **Daemon Commands** | Local `daemon start/ps/logs/attach/kill` wrapper over background agent sessions |
 | 🆕 | **Background Sessions** | Local `agent-bg`, `agent-ps`, `agent-logs`, `agent-attach`, and `agent-kill` flows |
 | 🆕 | **Testing Guide** | Comprehensive [TESTING_GUIDE.md](TESTING_GUIDE.md) with commands for every feature |

@@ -541,6 +541,35 @@ def create_app(state: AgentState) -> FastAPI:
             raise HTTPException(status_code=404, detail='Session not found')
         return _serialize_stored_session(stored)
 
+    @app.get('/api/file-history')
+    async def list_file_history(limit: int = 200) -> dict[str, Any]:
+        """Aggregate file_history entries across every saved session.
+
+        Returns newest first.  ``limit`` caps the response so very long-lived
+        workspaces don't ship megabytes of JSON to the browser.
+        """
+        directory = state.session_directory
+        entries: list[dict[str, Any]] = []
+        if directory.exists():
+            for path in directory.glob('*.json'):
+                try:
+                    data = json.loads(path.read_text(encoding='utf-8'))
+                except (OSError, json.JSONDecodeError):
+                    continue
+                session_id = data.get('session_id', path.stem)
+                for raw in data.get('file_history') or []:
+                    if not isinstance(raw, dict):
+                        continue
+                    entry = dict(raw)
+                    entry['session_id'] = session_id
+                    entries.append(entry)
+        entries.sort(key=lambda e: e.get('timestamp', ''), reverse=True)
+        return {
+            'total': len(entries),
+            'returned': min(limit, len(entries)),
+            'entries': entries[:limit],
+        }
+
     # ------------- chat ------------------------------------------------------
     @app.post('/api/chat')
     async def chat(request: ChatRequest) -> dict[str, Any]:
@@ -640,4 +669,5 @@ def _serialize_stored_session(stored: StoredAgentSession) -> dict[str, Any]:
         'usage': stored.usage,
         'total_cost_usd': stored.total_cost_usd,
         'model': stored.model_config.get('model'),
+        'file_history': [dict(entry) for entry in stored.file_history],
     }

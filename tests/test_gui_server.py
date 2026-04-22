@@ -362,6 +362,71 @@ class GuiServerTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertIn('model', response.json())
 
+    def test_file_history_aggregates_across_sessions(self) -> None:
+        import json
+
+        with tempfile.TemporaryDirectory() as d:
+            client, state = _build_client(Path(d))
+            sess_dir = state.session_directory
+            sess_dir.mkdir(parents=True, exist_ok=True)
+
+            # Two saved sessions, each with one file_history entry — newest
+            # entry should land first in the aggregated response.
+            (sess_dir / 'older.json').write_text(json.dumps({
+                'session_id': 'older',
+                'turns': 1,
+                'tool_calls': 1,
+                'messages': [],
+                'file_history': [
+                    {
+                        'timestamp': '2026-01-01T00:00:00+00:00',
+                        'tool_name': 'Edit',
+                        'history_kind': 'file_change',
+                        'changed_paths': ['a.py'],
+                    }
+                ],
+            }))
+            (sess_dir / 'newer.json').write_text(json.dumps({
+                'session_id': 'newer',
+                'turns': 1,
+                'tool_calls': 1,
+                'messages': [],
+                'file_history': [
+                    {
+                        'timestamp': '2026-04-22T00:00:00+00:00',
+                        'tool_name': 'Write',
+                        'history_kind': 'file_change',
+                        'changed_paths': ['b.py'],
+                    }
+                ],
+            }))
+
+            payload = client.get('/api/file-history').json()
+            self.assertEqual(payload['total'], 2)
+            self.assertEqual(payload['entries'][0]['session_id'], 'newer')
+            self.assertEqual(payload['entries'][0]['changed_paths'], ['b.py'])
+            self.assertEqual(payload['entries'][1]['session_id'], 'older')
+
+    def test_file_history_limit_caps_response(self) -> None:
+        import json
+
+        with tempfile.TemporaryDirectory() as d:
+            client, state = _build_client(Path(d))
+            sess_dir = state.session_directory
+            sess_dir.mkdir(parents=True, exist_ok=True)
+            entries = [
+                {'timestamp': f'2026-04-22T00:00:{i:02d}+00:00', 'tool_name': 'Edit'}
+                for i in range(10)
+            ]
+            (sess_dir / 's.json').write_text(json.dumps({
+                'session_id': 's', 'turns': 1, 'tool_calls': 1,
+                'messages': [], 'file_history': entries,
+            }))
+            payload = client.get('/api/file-history?limit=3').json()
+            self.assertEqual(payload['total'], 10)
+            self.assertEqual(payload['returned'], 3)
+            self.assertEqual(len(payload['entries']), 3)
+
 
 if __name__ == '__main__':
     unittest.main()
