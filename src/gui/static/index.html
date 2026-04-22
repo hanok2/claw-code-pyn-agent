@@ -174,6 +174,7 @@
             <button class="view-tab" data-view="mcp" type="button">MCP</button>
             <button class="view-tab" data-view="plugins" type="button">Plugins</button>
             <button class="view-tab" data-view="ask" type="button">Ask</button>
+            <button class="view-tab" data-view="workflows" type="button">Workflows</button>
           </div>
         </div>
         <div class="topbar-right">
@@ -206,6 +207,17 @@
           <span id="usage-meta"></span>
         </div>
       </footer>
+
+      <section id="workflows-view" class="tasks-view view" data-view-name="workflows" hidden>
+        <div class="tasks-toolbar">
+          <h2>Workflows</h2>
+          <button id="workflows-refresh" class="btn-ghost" type="button" title="Refresh">⟳</button>
+        </div>
+        <h3 class="worktree-history-title">Definitions</h3>
+        <div id="workflows-grid" class="skills-grid"></div>
+        <h3 class="worktree-history-title">Run history</h3>
+        <div id="workflows-history" class="history-list"></div>
+      </section>
 
       <section id="ask-view" class="tasks-view view" data-view-name="ask" hidden>
         <div class="tasks-toolbar">

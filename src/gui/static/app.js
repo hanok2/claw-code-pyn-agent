@@ -113,6 +113,9 @@ const els = {
   askHistory: $("#ask-history"),
   askRefresh: $("#ask-refresh"),
   askClearHistory: $("#ask-clear-history"),
+  workflowsGrid: $("#workflows-grid"),
+  workflowsHistory: $("#workflows-history"),
+  workflowsRefresh: $("#workflows-refresh"),
 };
 
 const BgState = { current: null, status: null };
@@ -913,6 +916,84 @@ function setView(view) {
   if (view === "mcp") loadMcp();
   if (view === "plugins") loadPlugins();
   if (view === "ask") loadAskUser();
+  if (view === "workflows") loadWorkflows();
+}
+
+// ---------------------------------------------------------------------------
+// Workflows view
+// ---------------------------------------------------------------------------
+async function loadWorkflows() {
+  try {
+    renderWorkflows(await apiGet("/api/workflows"));
+  } catch (e) {
+    setStatus("error", `workflows: ${e.message}`);
+  }
+}
+
+function renderWorkflows(payload) {
+  els.workflowsGrid.innerHTML = "";
+  if (!payload.workflows.length) {
+    els.workflowsGrid.innerHTML = `<div class="empty-state">No workflow manifests found in <code>.claw-workflows.json</code>.</div>`;
+  } else {
+    for (const w of payload.workflows) {
+      const card = document.createElement("div");
+      card.className = "skill-card";
+      card.innerHTML = `
+        <span class="skill-name">${escapeHtml(w.name)}</span>
+        <span class="skill-desc">${escapeHtml(w.description || "")}</span>
+        ${w.prompt ? `<span class="skill-when">${escapeHtml(w.prompt.slice(0, 200))}</span>` : ""}
+        <div class="skill-meta">
+          <span class="skill-meta-pill">${w.steps.length} step${w.steps.length === 1 ? "" : "s"}</span>
+        </div>
+        <div class="skill-actions">
+          <button data-act="run">Run…</button>
+        </div>
+      `;
+      card.querySelector('[data-act="run"]').addEventListener("click", () => runWorkflow(w.name));
+      els.workflowsGrid.appendChild(card);
+    }
+  }
+
+  els.workflowsHistory.innerHTML = "";
+  if (!payload.history.length) {
+    els.workflowsHistory.innerHTML = `<div class="empty-state">No workflow runs yet.</div>`;
+  } else {
+    for (const r of [...payload.history].reverse()) {
+      const row = document.createElement("div");
+      row.className = "history-row";
+      const when = r.created_at || "?";
+      row.innerHTML = `
+        <span class="history-when">${escapeHtml(when)}</span>
+        <span class="history-tool">${escapeHtml(r.workflow_name)}</span>
+        <span class="history-detail">${escapeHtml(r.summary || "")}</span>
+        <span class="history-session">${escapeHtml(r.run_id.slice(0, 12))}</span>
+      `;
+      els.workflowsHistory.appendChild(row);
+    }
+  }
+}
+
+async function runWorkflow(name) {
+  const raw = prompt(`Arguments JSON for workflow ${name}:`, "{}");
+  if (raw === null) return;
+  let args;
+  try {
+    args = JSON.parse(raw);
+  } catch (parseErr) {
+    setStatus("error", `workflows: invalid JSON (${parseErr.message})`);
+    return;
+  }
+  try {
+    setStatus("busy", `Running ${name}…`);
+    const data = await apiPost(
+      `/api/workflows/${encodeURIComponent(name)}/run`,
+      { arguments: args }
+    );
+    renderWorkflows(data.state);
+    setStatus("ready", "Recorded");
+  } catch (e) {
+    setStatus("error", `workflows: ${e.message}`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1975,6 +2056,7 @@ function bind() {
   if (els.askEnqueueForm) els.askEnqueueForm.addEventListener("submit", enqueueAsk);
   if (els.askRefresh) els.askRefresh.addEventListener("click", loadAskUser);
   if (els.askClearHistory) els.askClearHistory.addEventListener("click", clearAskHistory);
+  if (els.workflowsRefresh) els.workflowsRefresh.addEventListener("click", loadWorkflows);
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !els.palette.classList.contains("hidden")) {
       closePalette();

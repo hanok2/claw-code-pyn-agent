@@ -733,6 +733,7 @@ body[data-view="remote"] [data-view-name]:not([data-view-name="remote"]) { displ
 body[data-view="mcp"] [data-view-name]:not([data-view-name="mcp"]) { display: none !important; }
 body[data-view="plugins"] [data-view-name]:not([data-view-name="plugins"]) { display: none !important; }
 body[data-view="ask"] [data-view-name]:not([data-view-name="ask"]) { display: none !important; }
+body[data-view="workflows"] [data-view-name]:not([data-view-name="workflows"]) { display: none !important; }
 
 /* Tasks panel */
 .tasks-view {

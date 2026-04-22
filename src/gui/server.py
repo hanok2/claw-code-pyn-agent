@@ -48,6 +48,7 @@ from .plans_routes import create_plans_router
 from .plugins_routes import create_plugins_router
 from .remote_routes import create_remote_router
 from .tasks_routes import create_tasks_router
+from .workflow_routes import create_workflow_router
 from .worktree_routes import create_worktree_router
 
 
@@ -485,6 +486,12 @@ def create_app(state: AgentState) -> FastAPI:
     )
     app.include_router(
         create_ask_user_router(
+            lambda: state.cwd,
+            lambda: state.additional_working_directories,
+        )
+    )
+    app.include_router(
+        create_workflow_router(
             lambda: state.cwd,
             lambda: state.additional_working_directories,
         )
