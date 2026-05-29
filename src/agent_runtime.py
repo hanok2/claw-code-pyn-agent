@@ -2610,7 +2610,11 @@ class LocalCodingAgent:
             ok=True,
             content='\n'.join(summary_lines).strip(),
             metadata={
-                'action': 'Agent',
+                # Canonical name regardless of the alias the model invoked
+                # the tool with ('Agent' or 'delegate_agent'). Downstream
+                # consumers (file_history, observability) expect the stable
+                # historical identifier. Tests pin this contract.
+                'action': 'delegate_agent',
                 'subagent_type': agent_def.agent_type,
                 'child_session_id': child_result.session_id,
                 'child_session_ids': child_session_ids,
