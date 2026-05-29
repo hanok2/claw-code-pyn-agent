@@ -62,6 +62,11 @@ class ToolExecutionContext:
     team_runtime: 'TeamRuntime | None' = None
     workflow_runtime: 'WorkflowRuntime | None' = None
     worktree_runtime: 'WorktreeRuntime | None' = None
+    # Per-session counters and tagging for anti-loop / anti-self-confirm
+    # heuristics. Mutable contents inside the frozen dataclass — fine,
+    # only the field references are frozen, not what they point to.
+    edit_history: dict[str, int] = field(default_factory=dict)
+    self_authored_paths: set[str] = field(default_factory=set)
 
 
 ToolHandler = Callable[
@@ -1360,15 +1365,148 @@ def _list_dir(arguments: dict[str, Any], context: ToolExecutionContext) -> str:
     return '\n'.join(lines) if lines else '(empty directory)'
 
 
+import re as _re
+
+# Paths whose names strongly indicate secret-bearing content.
+# Reading these via the auto-Read path is refused — refusing to
+# ingest is the structural fix. Bash can still read them with
+# explicit intent if the user really wants to.
+_SECRET_BEARING_PATH_PATTERNS = (
+    _re.compile(r'(^|/)\.env(\.[^/]*)?$'),               # .env, .env.local, ...
+    _re.compile(r'\.pem$'),
+    _re.compile(r'\.key$'),
+    _re.compile(r'(^|/)id_(rsa|ed25519|ecdsa|dsa)(\.pub)?$'),
+    _re.compile(r'(^|/)credentials(\.json|\.yaml|\.yml)?$', _re.IGNORECASE),
+    _re.compile(r'(^|/)secrets?(\.json|\.yaml|\.yml|\.toml)?$', _re.IGNORECASE),
+    _re.compile(r'(^|/)\.aws/credentials$'),
+    _re.compile(r'(^|/)\.netrc$'),
+)
+
+
+def _is_secret_bearing_path(path: Path) -> bool:
+    """True if path's name/segments match a known secret-bearing convention."""
+    text = str(path)
+    return any(p.search(text) for p in _SECRET_BEARING_PATH_PATTERNS)
+
+
+def _refuse_if_secret_bearing(target: Path) -> None:
+    """Refuse content-returning tool calls on paths that match known
+    secret-bearing conventions. Bash retains the ability to read these
+    paths with explicit user intent.
+    """
+    if _is_secret_bearing_path(target):
+        raise ToolExecutionError(
+            f'refused to read secret-bearing path: {target}. '
+            'Reading this via the model-driven tool path would poison '
+            'message history. Use bash with explicit intent if this '
+            'content is genuinely needed.'
+        )
+
+
+# Edit-loop threshold: after this many writes/edits to the same path within
+# one tool-context lifetime, refuse with a hard error.
+_EDIT_LOOP_LIMIT = 5
+
+# Markdown-churn threshold: refuse further summary-shape .md writes after
+# this many in one context. Catches the pattern where each iteration
+# emitted a new "CRITICAL_FINDING_*.md", "SESSION_SUMMARY_*.md",
+# "QUICK_REFERENCE.md", "gaps_filled_*.md" etc. as fake progress markers.
+_MD_CHURN_LIMIT = 4
+
+# Filename signatures that look like self-emitted summary docs.
+_CHURN_FILENAME_PATTERNS = re.compile(
+    r'(?ix)('
+    r'summary|finding|critical|session_|gaps?[-_]filled|quick[-_]reference'
+    r'|deliverables?|status[-_]report|progress[-_]report|wrap[-_]up'
+    r'|completion[-_]report|implementation[-_]summary|final[-_]summary'
+    r')'
+)
+# Conventional doc filenames that should NEVER be flagged as churn.
+_DOC_PATH_ALLOWLIST = re.compile(r'(?i)(^|/)(readme|changelog|license|contributing)\b')
+
+
+def _is_churn_markdown(target: Path) -> bool:
+    """True if the path looks like a summary/findings markdown likely
+    emitted as fake-progress churn rather than real documentation.
+    """
+    name = target.name
+    if not name.lower().endswith('.md'):
+        return False
+    if _DOC_PATH_ALLOWLIST.search(str(target)):
+        return False
+    # Files in docs/ are legitimate docs by convention.
+    if 'docs' in {p.lower() for p in target.parts}:
+        return False
+    return bool(_CHURN_FILENAME_PATTERNS.search(name))
+
+
+def _track_churn_and_check(target: Path, context: ToolExecutionContext) -> None:
+    """Refuse if too many summary-shape markdown files written in this
+    context. Counter is reused from edit_history under a sentinel key so
+    no new dataclass field is needed.
+    """
+    if not _is_churn_markdown(target):
+        return
+    counter_key = '__churn_md_count__'
+    context.edit_history[counter_key] = context.edit_history.get(counter_key, 0) + 1
+    if context.edit_history[counter_key] > _MD_CHURN_LIMIT:
+        raise ToolExecutionError(
+            f'churn-doc guard: refused to write {target.name} — this is '
+            f'the {context.edit_history[counter_key]}-th summary/findings '
+            f'markdown in this session (limit {_MD_CHURN_LIMIT}). '
+            'Writing more summaries is not progress; it is performance. '
+            'If the work is genuinely done, one summary suffices. If it '
+            'is not done, write code or tests, not another summary.'
+        )
+
+
+def _track_write_and_check_loop(target: Path, context: ToolExecutionContext) -> None:
+    """Increment edit count for `target` and refuse if loop limit exceeded.
+
+    Refusal is permanent for the rest of this context's lifetime — there
+    is no way for the model to talk past it. The fix for hitting this is
+    to step back and explain what fundamental change is expected, not to
+    retry with a different threshold.
+    """
+    key = str(target.resolve())
+    context.edit_history[key] = context.edit_history.get(key, 0) + 1
+    context.self_authored_paths.add(key)
+    if context.edit_history[key] > _EDIT_LOOP_LIMIT:
+        raise ToolExecutionError(
+            f'edit-loop guard: refused to write/edit {target} a '
+            f'{context.edit_history[key]}-th time in this session '
+            f'(limit {_EDIT_LOOP_LIMIT}). This pattern indicates a '
+            'tweak-and-rerun loop, not progress. Stop and explain to '
+            'the user what fundamental change you expect to be '
+            'different — or what hypothesis you are testing — before '
+            'editing this file again.'
+        )
+
+
+def _self_authored_warning(target: Path, context: ToolExecutionContext) -> str:
+    """If the agent wrote this file earlier in the session, return a
+    warning header to prepend to the read content. Empty string otherwise.
+    """
+    if str(target.resolve()) in context.self_authored_paths:
+        return (
+            '[self-authored: this file was written or edited by the '
+            'agent earlier in this session. Results from it are not '
+            'independent measurements. Treat with skepticism.]\n'
+        )
+    return ''
+
+
 def _read_file(arguments: dict[str, Any], context: ToolExecutionContext) -> str:
     target = _resolve_path(_require_string(arguments, 'path'), context, allow_missing=False)
+    _refuse_if_secret_bearing(target)
     if not target.is_file():
         raise ToolExecutionError(f'Path is not a file: {target}')
     text = target.read_text(encoding='utf-8', errors='replace')
+    self_warning = _self_authored_warning(target, context)
     start_line = arguments.get('start_line')
     end_line = arguments.get('end_line')
     if start_line is None and end_line is None:
-        return _truncate_output(text, context.max_output_chars)
+        return _truncate_output(self_warning + text, context.max_output_chars)
     if start_line is not None and (isinstance(start_line, bool) or not isinstance(start_line, int) or start_line < 1):
         raise ToolExecutionError('start_line must be an integer >= 1')
     if end_line is not None and (isinstance(end_line, bool) or not isinstance(end_line, int) or end_line < 1):
@@ -1378,7 +1516,7 @@ def _read_file(arguments: dict[str, Any], context: ToolExecutionContext) -> str:
     end_idx = end_line or len(lines)
     selected = lines[start_idx:end_idx]
     rendered = '\n'.join(f'{start_idx + idx + 1}: {line}' for idx, line in enumerate(selected))
-    return _truncate_output(rendered, context.max_output_chars)
+    return _truncate_output(self_warning + rendered, context.max_output_chars)
 
 
 def _write_file(arguments: dict[str, Any], context: ToolExecutionContext) -> str:
@@ -1387,6 +1525,8 @@ def _write_file(arguments: dict[str, Any], context: ToolExecutionContext) -> str
     content = arguments.get('content')
     if not isinstance(content, str):
         raise ToolExecutionError('content must be a string')
+    _track_churn_and_check(target, context)
+    _track_write_and_check_loop(target, context)
     previous_text: str | None = None
     previous_sha256: str | None = None
     if target.exists() and target.is_file():
@@ -1420,6 +1560,8 @@ def _write_file(arguments: dict[str, Any], context: ToolExecutionContext) -> str
 def _edit_file(arguments: dict[str, Any], context: ToolExecutionContext) -> str:
     _ensure_write_allowed(context)
     target = _resolve_path(_require_string(arguments, 'path'), context, allow_missing=False)
+    _refuse_if_secret_bearing(target)
+    _track_write_and_check_loop(target, context)
     if not target.is_file():
         raise ToolExecutionError(f'Path is not a file: {target}')
     old_text = arguments.get('old_text')
@@ -1572,6 +1714,11 @@ def _grep_search(arguments: dict[str, Any], context: ToolExecutionContext) -> st
     root = _resolve_path(raw_path, context)
     if not root.exists():
         raise ToolExecutionError(f'Path not found: {raw_path}')
+    # If the user explicitly grep'd a secret-bearing file, refuse loudly.
+    # When iterating a directory, secret-bearing entries are skipped
+    # silently below — they weren't named, so silent skip is honest.
+    if root.is_file():
+        _refuse_if_secret_bearing(root)
     try:
         regex = re.compile(re.escape(pattern) if literal else pattern)
     except re.error as exc:
@@ -1580,6 +1727,8 @@ def _grep_search(arguments: dict[str, Any], context: ToolExecutionContext) -> st
     file_iter = root.rglob('*') if root.is_dir() else [root]
     for file_path in file_iter:
         if not file_path.is_file():
+            continue
+        if _is_secret_bearing_path(file_path):
             continue
         try:
             text = file_path.read_text(encoding='utf-8', errors='replace')
@@ -1592,6 +1741,35 @@ def _grep_search(arguments: dict[str, Any], context: ToolExecutionContext) -> st
                 if len(hits) >= max_matches:
                     return '\n'.join(hits + [f'... truncated at {max_matches} matches ...'])
     return '\n'.join(hits) if hits else '(no matches)'
+
+
+def _bash_self_authored_banner(command: str, context: ToolExecutionContext) -> str:
+    """Banner prepended to bash output when the command references a path
+    the agent wrote earlier in this session.
+
+    Catches the case where the agent runs a script it just wrote and cites
+    the output as evidence — e.g. `python3 retrieval_accuracy_test.py`
+    where the test was authored five turns ago. Without this banner, the
+    output looks indistinguishable from running an external program.
+    """
+    if not context.self_authored_paths:
+        return ''
+    referenced: list[str] = []
+    for path in context.self_authored_paths:
+        # Match the absolute path or its basename in the command. Loose
+        # match — false positives are mild (extra warning) but false
+        # negatives miss the whole point.
+        basename = Path(path).name
+        if path in command or (basename and basename in command):
+            referenced.append(basename)
+    if not referenced:
+        return ''
+    names = ', '.join(sorted(set(referenced)))
+    return (
+        f'[self-authored: this command runs files written by the agent '
+        f'earlier in this session ({names}). Output is not an '
+        f'independent measurement. Treat with skepticism.]\n'
+    )
 
 
 def _run_bash(arguments: dict[str, Any], context: ToolExecutionContext) -> str:
@@ -1609,6 +1787,7 @@ def _run_bash(arguments: dict[str, Any], context: ToolExecutionContext) -> str:
     )
     stdout = completed.stdout or ''
     stderr = completed.stderr or ''
+    banner = _bash_self_authored_banner(command, context)
     payload = [
         f'exit_code={completed.returncode}',
         '[stdout]',
@@ -1616,8 +1795,11 @@ def _run_bash(arguments: dict[str, Any], context: ToolExecutionContext) -> str:
         '[stderr]',
         stderr.rstrip(),
     ]
+    rendered = '\n'.join(payload).strip()
+    if banner:
+        rendered = banner + rendered
     return (
-        _truncate_output('\n'.join(payload).strip(), context.max_output_chars),
+        _truncate_output(rendered, context.max_output_chars),
         {
             'action': 'bash',
             'command': command,
@@ -1627,6 +1809,41 @@ def _run_bash(arguments: dict[str, Any], context: ToolExecutionContext) -> str:
             'output_preview': _snapshot_text('\n'.join(payload).strip()),
         },
     )
+
+
+_BINARY_CONTENT_TYPES = {
+    'application/pdf',
+    'application/octet-stream',
+    'application/zip',
+    'application/x-tar',
+    'application/x-gzip',
+    'application/gzip',
+    'application/x-bzip2',
+    'application/wasm',
+    'application/x-protobuf',
+}
+
+
+def _looks_binary(raw: bytes, content_type: str | None) -> bool:
+    """True if the response is unlikely to be readable text.
+
+    Either the Content-Type announces binary, or the byte stream contains
+    NUL bytes / a high ratio of non-printable bytes. Catches PDFs even when
+    they are served with a generic Content-Type header.
+    """
+    if content_type:
+        ct = content_type.split(';', 1)[0].strip().lower()
+        if ct in _BINARY_CONTENT_TYPES or ct.startswith(('image/', 'video/', 'audio/')):
+            return True
+    if not raw:
+        return False
+    if raw[:5] == b'%PDF-':
+        return True
+    sample = raw[:4096]
+    if b'\x00' in sample:
+        return True
+    nonprintable = sum(1 for b in sample if b < 9 or 13 < b < 32 or b == 127)
+    return (nonprintable / len(sample)) > 0.10
 
 
 def _web_fetch(arguments: dict[str, Any], context: ToolExecutionContext) -> str:
@@ -1643,9 +1860,22 @@ def _web_fetch(arguments: dict[str, Any], context: ToolExecutionContext) -> str:
         with urllib.request.urlopen(request, timeout=context.command_timeout_seconds) as response:
             raw_bytes = response.read(max_chars + 1)
             content_type = response.headers.get_content_type() if hasattr(response, 'headers') else None
-            text = raw_bytes.decode('utf-8', errors='replace')
     except (urllib.error.URLError, OSError) as exc:
         raise ToolExecutionError(f'Failed to fetch {raw_url}: {exc}') from exc
+    # Binary payloads (PDFs, archives, images) decode to UTF-8 garbage with
+    # `errors='replace'`. That garbage looks plausibly like prose to the
+    # model, which then hallucinates content from it. Refuse loudly instead
+    # of returning faux-text — this is the path that produced fabricated
+    # paper titles / authors when the model was given an arxiv PDF URL.
+    if _looks_binary(raw_bytes, content_type):
+        raise ToolExecutionError(
+            f'Fetched {raw_url} returned non-text content '
+            f'(content_type={content_type!r}, {len(raw_bytes)} bytes). '
+            'web_fetch only extracts UTF-8 text. For PDFs use bash with '
+            'pdftotext; for images use read_file. Do NOT proceed as if '
+            'the content were readable — it is not.'
+        )
+    text = raw_bytes.decode('utf-8', errors='replace')
     truncated = len(text) > max_chars
     rendered = text[:max_chars]
     if truncated:

@@ -1,11 +1,68 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field, replace
 from typing import Any
 
 from .agent_types import UsageStats
 
 JSONDict = dict[str, Any]
+
+# ---------------------------------------------------------------------------
+# Secret redaction — applied at tool-result ingestion to prevent leaked tokens
+# from poisoning the entire message history.
+# ---------------------------------------------------------------------------
+
+_SECRET_PATTERNS = (
+    re.compile(r'\bsk-(ant|proj|or|live|test)-[A-Za-z0-9_\-]{8,}'),
+    # Stripe uses underscores: sk_live_..., sk_test_..., rk_live_..., rk_test_...
+    re.compile(r'\b(sk|rk|pk)_(live|test)_[A-Za-z0-9]{16,}'),
+    re.compile(r'\bghp_[A-Za-z0-9]{20,}'),
+    re.compile(r'\bAKIA[0-9A-Z]{16,}'),
+    re.compile(r'\bxoxb-[A-Za-z0-9\-]{20,}'),
+    # Google API keys: documented as AIza + 35 chars from [A-Za-z0-9_-]
+    re.compile(r'\bAIza[A-Za-z0-9_\-]{35}\b'),
+    # JWT: three base64url segments separated by dots; first must start with
+    # eyJ (which is base64 for `{"`). Less false-positive-prone than `\beyJ`.
+    re.compile(r'\beyJ[A-Za-z0-9_\-]+\.eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+'),
+    re.compile(r'-----BEGIN (RSA|OPENSSH|EC|DSA|PRIVATE) (PRIVATE )?KEY-----'),
+)
+
+
+def _secret_kind(token: str) -> str:
+    if token.startswith('sk-'):
+        return token.split('-', 2)[1] if '-' in token[3:] else 'sk'
+    if token.startswith(('sk_', 'rk_', 'pk_')):
+        return 'stripe'
+    if token.startswith('ghp_'):
+        return 'github'
+    if token.startswith('AKIA'):
+        return 'aws'
+    if token.startswith('xoxb-'):
+        return 'slack'
+    if token.startswith('AIza'):
+        return 'google'
+    if token.startswith('eyJ'):
+        return 'jwt'
+    if token.startswith('-----BEGIN'):
+        return 'pem'
+    return 'secret'
+
+
+def redact_secrets(text: str) -> str:
+    """Replace any token matching `_SECRET_PATTERNS` with ``[REDACTED:<kind>]``.
+
+    Applied at tool-result ingestion so a ``Read`` of an env file does not
+    poison the entire message history with live credentials.
+    """
+    if not text:
+        return text
+    redacted = text
+    for pattern in _SECRET_PATTERNS:
+        redacted = pattern.sub(
+            lambda m: f'[REDACTED:{_secret_kind(m.group(0))}]', redacted
+        )
+    return redacted
 MAX_MUTATION_HISTORY = 8
 
 
@@ -306,6 +363,7 @@ class AgentSessionState:
         )
 
     def append_tool(self, name: str, tool_call_id: str, content: str) -> None:
+        content = redact_secrets(content)
         self.messages.append(
             AgentMessage(
                 role='tool',
@@ -371,10 +429,11 @@ class AgentSessionState:
         merged_metadata = _advance_lineage_revision(merged_metadata)
         if metadata:
             merged_metadata.update(metadata)
+        new_content = redact_secrets(message.content + delta)
         self.messages[index] = replace(
             message,
-            content=message.content + delta,
-            blocks=_tool_blocks(message.name, message.tool_call_id, message.content + delta),
+            content=new_content,
+            blocks=_tool_blocks(message.name, message.tool_call_id, new_content),
             metadata=merged_metadata,
         )
 
@@ -401,6 +460,7 @@ class AgentSessionState:
             merged_metadata = _advance_lineage_revision(merged_metadata)
         if metadata:
             merged_metadata.update(metadata)
+        content = redact_secrets(content)
         self.messages[index] = replace(
             message,
             content=content,
@@ -422,6 +482,8 @@ class AgentSessionState:
     ) -> None:
         message = self.messages[index]
         merged_metadata = dict(message.metadata)
+        if content is not None and message.role == 'tool':
+            content = redact_secrets(content)
         new_content = message.content if content is None else content
         new_state = message.state if state is None else state
         new_stop_reason = message.stop_reason if stop_reason is None else stop_reason
