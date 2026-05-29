@@ -44,7 +44,16 @@ class SetupReportTest(unittest.TestCase):
             (Path(tmp) / 'CHANGELOG.md').write_text(
                 '# Changelog\n\n## 9.9.9\n- big release\n', encoding='utf-8',
             )
-            report = run_setup(cwd=Path(tmp), trusted=True, last_seen_version='0.0.1')
+            # Override current_version because in a source checkout the
+            # installed package metadata reports 0.0.0, which would make
+            # last_seen_version='0.0.1' compare as already-current and
+            # suppress all release notes.
+            report = run_setup(
+                cwd=Path(tmp),
+                trusted=True,
+                last_seen_version='0.0.1',
+                current_version='9.9.9',
+            )
         self.assertIsInstance(report, SetupReport)
         self.assertGreaterEqual(len(report.runtime_checks), 3)
         self.assertIn('big release', report.release_notes)

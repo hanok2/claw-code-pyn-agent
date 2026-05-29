@@ -129,6 +129,7 @@ def run_setup(
     cwd: Path | None = None,
     trusted: bool = True,
     last_seen_version: str | None = None,
+    current_version: str | None = None,
 ) -> SetupReport:
     root = cwd or Path(__file__).resolve().parent.parent
     prefetches = [
@@ -136,8 +137,13 @@ def run_setup(
         start_keychain_prefetch(),
         start_project_scan(root),
     ]
+    # When the package is not installed via pip (dev / source checkout),
+    # `_read_package_version()` returns '0.0.0' — which makes any non-trivial
+    # `last_seen_version` compare as "newer than current" and suppresses
+    # release notes. Allow callers (tests, dev runs) to override.
+    effective_version = current_version if current_version is not None else _read_package_version()
     release_notes_payload = check_for_release_notes(
-        current_version=_read_package_version(),
+        current_version=effective_version,
         last_seen_version=last_seen_version,
         cwd=root,
     )
